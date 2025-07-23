@@ -25,6 +25,9 @@ class Admin(db.Model):
 
     def set_password(self, pw):
         self.pwd_hash = generate_password_hash(pw)
+    
+    def check_password(self, pw):
+        return check_password_hash(self.pwd_hash, pw)
 
 
 class ParkingLot(db.Model):

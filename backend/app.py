@@ -1,10 +1,9 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager
+from extensions import db, jwt
 from config import Config
-
-db  = SQLAlchemy()
-jwt = JWTManager()
+from routes.admin import admin_bp
+from routes.user import user_bp
+from routes.auth import auth_bp
 
 def create_app():
     app = Flask(__name__)
@@ -12,8 +11,8 @@ def create_app():
 
     db.init_app(app)
     jwt.init_app(app)
-
-    from routes.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(user_bp)
 
     return app

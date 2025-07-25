@@ -1,6 +1,6 @@
-from flask import Blueprint, request, render_template, redirect, url_for, flash
+from flask import Blueprint, request, render_template, redirect, url_for, flash, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import ParkingLot, ParkingSpot
+from models import User, ParkingLot, ParkingSpot
 from app import db
 from .decorators import role_required
 
@@ -53,3 +53,44 @@ def delete_lot(lot_id):
     db.session.commit()
     flash("Lot deleted")
     return redirect(url_for('admin.admin_dashboard'))
+
+@admin_bp.route('/api/lots/<int:lot_id>', methods=['DELETE'])
+@role_required('admin')
+def delete_lot(lot_id):
+    lot = ParkingLot.query.get_or_404(lot_id)
+    occupied = ParkingSpot.query.filter_by(lot_id=lot_id, status='O').count()
+    if occupied > 0:
+        return jsonify(msg="Cannot delete lot with occupied spots"), 400
+
+    db.session.delete(lot)
+    db.session.commit()
+    return jsonify(msg="Deleted"), 200
+
+@admin_bp.route('/api/lots', methods=['POST'])
+@role_required('admin')
+def create_lot():
+    data = request.get_json()
+    lot = ParkingLot(
+        prime_location_name=data['name'],
+        price_per_hour=data['price'],
+        address=data['address'],
+        pin_code=data['pincode'],
+        number_of_spots=data['spots']
+    )
+    db.session.add(lot)
+    db.session.flush()
+
+    for _ in range(data['spots']):
+        db.session.add(ParkingSpot(lot_id=lot.id))
+    db.session.commit()
+    return jsonify(msg="Created"), 201
+
+@admin_bp.route('/api/admin/users', methods=['GET'])
+@role_required('admin')
+def list_users():
+    users = User.query.all()
+    return jsonify([
+        {"id": u.id, "email": u.email, "name": u.full_name}
+        for u in users
+    ])
+

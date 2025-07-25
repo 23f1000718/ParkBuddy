@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://unpkg.com/vue@3"></script>
+</head>
+<body>
+  <div id="userApp">
+    <h4>User Dashboard</h4>
+    <div v-for="lot in lots" :key="lot.id" class="border p-2 mb-2">
+      <strong>{{ lot.prime_location_name }}</strong> —
+      ₹{{ lot.price_per_hour }}/hr
+      <button @click="reserve(lot.id)" class="btn btn-sm btn-primary float-end">Reserve</button>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          lots: []
+        };
+      },
+      mounted() {
+        this.loadLots();
+      },
+      methods: {
+        getToken() {
+          return localStorage.getItem('token');
+        },
+        loadLots() {
+          fetch('/api/lots', {
+            headers: { Authorization: `Bearer ${this.getToken()}` }
+          })
+          .then(res => res.json())
+          .then(data => this.lots = data);
+        },
+        reserve(lotId) {
+          fetch(`/api/user/reserve/${lotId}`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${this.getToken()}` }
+          })
+          .then(res => res.json())
+          .then(data => {
+            alert(data.msg || 'Reserved!');
+            this.loadLots();
+          });
+        }
+      }
+    }).mount('#userApp');
+  </script>
+</body>
+</html>

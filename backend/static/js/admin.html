@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://unpkg.com/vue@3"></script>
+</head>
+<body>
+  <div id="adminApp">
+    <h4>Admin Dashboard</h4>
+    <button @click="fetchLots" class="btn btn-sm btn-primary mb-2">Reload Lots</button>
+    <div v-for="lot in lots" :key="lot.id" class="border p-2 mb-2">
+      <strong>{{ lot.prime_location_name }}</strong> —
+      ₹{{ lot.price_per_hour }}/hr |
+      Spots: {{ lot.number_of_spots }}
+      <button @click="deleteLot(lot.id)" class="btn btn-sm btn-danger float-end">Delete</button>
+    </div>
+    <hr>
+    <h5>Add New Lot</h5>
+    <input v-model="newLot.name" placeholder="Name" class="form-control mb-1" />
+    <input v-model="newLot.price" type="number" placeholder="Price/hr" class="form-control mb-1" />
+    <input v-model="newLot.address" placeholder="Address" class="form-control mb-1" />
+    <input v-model="newLot.pincode" placeholder="Pin code" class="form-control mb-1" />
+    <input v-model="newLot.spots" type="number" placeholder="Total Spots" class="form-control mb-1" />
+    <button @click="addLot" class="btn btn-success">Create</button>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          lots: [],
+          newLot: {
+            name: '', price: '', address: '', pincode: '', spots: ''
+          }
+        }
+      },
+      mounted() {
+        this.fetchLots();
+      },
+      methods: {
+        getToken() {
+          return localStorage.getItem('token');
+        },
+        fetchLots() {
+          fetch('/api/lots', {
+            headers: { Authorization: `Bearer ${this.getToken()}` }
+          })
+          .then(res => res.json())
+          .then(data => this.lots = data);
+        },
+        deleteLot(id) {
+          fetch(`/api/lots/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${this.getToken()}` }
+          }).then(() => this.fetchLots());
+        },
+        addLot() {
+          fetch('/api/lots', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.getToken()}`
+            },
+            body: JSON.stringify(this.newLot)
+          }).then(() => {
+            this.newLot = { name: '', price: '', address: '', pincode: '', spots: '' };
+            this.fetchLots();
+          });
+        }
+      }
+    }).mount('#adminApp');
+  </script>
+</body>
+</html>

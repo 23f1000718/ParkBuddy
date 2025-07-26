@@ -1,7 +1,7 @@
 from flask import Blueprint, request, render_template, redirect, url_for, flash, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import User, ParkingLot, ParkingSpot
-from app import db
+from extensions import db
 from .decorators import role_required
 
 admin_bp = Blueprint('admin', __name__)
@@ -54,9 +54,9 @@ def delete_lot(lot_id):
     flash("Lot deleted")
     return redirect(url_for('admin.admin_dashboard'))
 
-@admin_bp.route('/api/lots/<int:lot_id>', methods=['DELETE'])
+@admin_bp.route('/api/admin/lots/<int:lot_id>', methods=['DELETE'])
 @role_required('admin')
-def delete_lot(lot_id):
+def delete_lot_api(lot_id):
     lot = ParkingLot.query.get_or_404(lot_id)
     occupied = ParkingSpot.query.filter_by(lot_id=lot_id, status='O').count()
     if occupied > 0:
@@ -66,9 +66,9 @@ def delete_lot(lot_id):
     db.session.commit()
     return jsonify(msg="Deleted"), 200
 
-@admin_bp.route('/api/lots', methods=['POST'])
+@admin_bp.route('/api/admin/lots', methods=['POST'])
 @role_required('admin')
-def create_lot():
+def create_lot_api():
     data = request.get_json()
     lot = ParkingLot(
         prime_location_name=data['name'],

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_jwt_extended import get_jwt_identity
 from models import ParkingLot, ParkingSpot, Reservation, User
-from app import db
+from extensions import db
 from .decorators import role_required
 
 user_bp = Blueprint('user', __name__)
@@ -33,12 +33,9 @@ def reserve(lot_id):
 
     return render_template('reserve.html', lot_id=lot_id)
 
-from models import ParkingSpot, Reservation
-from flask_jwt_extended import get_jwt_identity
-
 @user_bp.route('/api/user/reserve/<int:lot_id>', methods=['POST'])
 @role_required('user')
-def reserve(lot_id):
+def reserve_api(lot_id):
     user_id = get_jwt_identity()
     spot = ParkingSpot.query.filter_by(lot_id=lot_id, status='A').first()
     if not spot:
@@ -50,11 +47,10 @@ def reserve(lot_id):
     db.session.commit()
     return jsonify(msg="Reserved", reservation_id=reservation.id), 200
 
-from datetime import datetime
-
 @user_bp.route('/api/user/release/<int:res_id>', methods=['POST'])
 @role_required('user')
-def release(res_id):
+def release_api(res_id):
+    from datetime import datetime
     res = Reservation.query.get_or_404(res_id)
     if res.leaving_timestamp:
         return jsonify(msg="Already released"), 400
@@ -71,7 +67,7 @@ def release(res_id):
 
 @user_bp.route('/api/user/reservations', methods=['GET'])
 @role_required('user')
-def history():
+def reservations_history():
     user_id = get_jwt_identity()
     reservations = Reservation.query.filter_by(user_id=user_id).all()
     return jsonify([

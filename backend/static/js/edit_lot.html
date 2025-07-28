@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://unpkg.com/vue@3"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <title>Edit Parking Lot - ParkBuddy Admin</title>
+</head>
+<body>
+  <div id="editLotApp" class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2><i class="bi bi-pencil-square"></i> Edit Parking Lot</h2>
+          <a href="/static/js/admin.html" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+          </a>
+        </div>
+        <hr>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="text-center">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2">Loading parking lot details...</p>
+    </div>
+
+    <!-- Form -->
+    <div v-else class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card shadow">
+          <div class="card-header">
+            <h5><i class="bi bi-geo-alt"></i> Edit Parking Lot Information</h5>
+          </div>
+          <div class="card-body">
+            <form @submit.prevent="updateLot">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Lot Name *</label>
+                  <input v-model="lotData.name" type="text" class="form-control" placeholder="Enter lot name" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Price per Hour (₹) *</label>
+                  <input v-model="lotData.price" type="number" step="0.01" class="form-control" placeholder="Enter price" required />
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label class="form-label">Address *</label>
+                <input v-model="lotData.address" type="text" class="form-control" placeholder="Enter complete address" required />
+              </div>
+              
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Pin Code *</label>
+                  <input v-model="lotData.pincode" type="text" class="form-control" placeholder="Enter pin code" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Number of Spots *</label>
+                  <input v-model="lotData.spots" type="number" class="form-control" placeholder="Enter number of spots" required />
+                  <small class="text-muted">Note: Changing spots will affect existing reservations</small>
+                </div>
+              </div>
+              
+              <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="/static/js/admin.html" class="btn btn-secondary me-md-2">
+                  <i class="bi bi-x-circle"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-primary" :disabled="updating">
+                  <i class="bi bi-check-circle"></i> 
+                  {{ updating ? 'Updating...' : 'Update Lot' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert Messages -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 10000;">
+      <div v-if="alert.show" :class="`alert alert-${alert.type} alert-dismissible fade show`" role="alert">
+        {{ alert.message }}
+        <button type="button" class="btn-close" @click="alert.show = false"></button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          lotData: {
+            name: '',
+            price: '',
+            address: '',
+            pincode: '',
+            spots: ''
+          },
+          loading: true,
+          updating: false,
+          alert: { show: false, type: 'info', message: '' }
+        };
+      },
+      mounted() {
+        this.loadLotData();
+      },
+      methods: {
+        showAlert(type, message) {
+          this.alert = { show: true, type, message };
+          setTimeout(() => {
+            this.alert.show = false;
+          }, 5000);
+        },
+        getToken() {
+          return localStorage.getItem('token');
+        },
+        getLotId() {
+          const urlParams = new URLSearchParams(window.location.search);
+          return urlParams.get('id');
+        },
+        loadLotData() {
+          const lotId = this.getLotId();
+          if (!lotId) {
+            this.showAlert('danger', 'No lot ID provided');
+            return;
+          }
+
+          fetch(`/api/lots/${lotId}`, {
+            headers: { Authorization: `Bearer ${this.getToken()}` }
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (res.ok) {
+              this.lotData = {
+                name: data.prime_location_name,
+                price: data.price_per_hour,
+                address: data.address,
+                pincode: data.pin_code,
+                spots: data.number_of_spots
+              };
+            } else {
+              this.showAlert('danger', data.msg || 'Failed to load lot data');
+            }
+          })
+          .catch(error => {
+            this.showAlert('danger', 'Error loading lot data');
+          })
+          .finally(() => {
+            this.loading = false;
+          });
+        },
+        updateLot() {
+          if (!this.lotData.name || !this.lotData.price || !this.lotData.address || 
+              !this.lotData.pincode || !this.lotData.spots) {
+            this.showAlert('warning', 'Please fill in all fields');
+            return;
+          }
+
+          this.updating = true;
+          const lotId = this.getLotId();
+
+          fetch(`/api/admin/edit-lot/${lotId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.getToken()}`
+            },
+            body: JSON.stringify(this.lotData)
+          })
+          .then(res => {
+            return res.json().then(data => ({ status: res.status, data }));
+          })
+          .then(({ status, data }) => {
+            if (status === 200) {
+              this.showAlert('success', 'Parking lot updated successfully!');
+              setTimeout(() => {
+                window.location.href = '/static/js/admin.html';
+              }, 1500);
+            } else {
+              this.showAlert('danger', data.msg || 'Failed to update parking lot');
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            this.showAlert('danger', 'Error updating parking lot');
+          })
+          .finally(() => {
+            this.updating = false;
+          });
+        }
+      }
+    }).mount('#editLotApp');
+  </script>
+</body>
+</html> 

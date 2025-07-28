@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://unpkg.com/vue@3"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <title>View Parking Lot - ParkBuddy Admin</title>
+</head>
+<body>
+  <div id="viewLotApp" class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <h2><i class="bi bi-eye"></i> Parking Lot Details</h2>
+          <a href="/static/js/admin.html" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+          </a>
+        </div>
+        <hr>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="text-center">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2">Loading parking lot details...</p>
+    </div>
+
+    <!-- Lot Details -->
+    <div v-else-if="lotData" class="row">
+      <div class="col-md-6">
+        <div class="card shadow">
+          <div class="card-header">
+            <h5><i class="bi bi-geo-alt"></i> Lot Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row mb-3">
+              <div class="col-sm-4"><strong>Name:</strong></div>
+              <div class="col-sm-8">{{ lotData.lot.name }}</div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-sm-4"><strong>Address:</strong></div>
+              <div class="col-sm-8">{{ lotData.lot.address }}</div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-sm-4"><strong>Pin Code:</strong></div>
+              <div class="col-sm-8">{{ lotData.lot.pin_code }}</div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-sm-4"><strong>Price:</strong></div>
+              <div class="col-sm-8">₹{{ lotData.lot.price_per_hour }}/hour</div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-sm-4"><strong>Total Spots:</strong></div>
+              <div class="col-sm-8">{{ lotData.lot.total_spots }}</div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-sm-4"><strong>Available Spots:</strong></div>
+              <div class="col-sm-8">
+                <span class="badge bg-success">{{ availableSpots }}</span>
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-sm-4"><strong>Occupied Spots:</strong></div>
+              <div class="col-sm-8">
+                <span class="badge bg-danger">{{ occupiedSpots }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card shadow">
+          <div class="card-header">
+            <h5><i class="bi bi-p-square"></i> Spot Status</h5>
+          </div>
+          <div class="card-body">
+            <div class="row mb-2" v-for="spot in lotData.spots" :key="spot.id">
+              <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center p-2 border rounded">
+                  <div>
+                    <span class="badge" :class="spot.status === 'A' ? 'bg-success' : 'bg-danger'">
+                      Spot {{ spot.id }}: {{ spot.status === 'A' ? 'Available' : 'Occupied' }}
+                    </span>
+                  </div>
+                  <div v-if="spot.occupied_by" class="text-muted small">
+                    <div><strong>Occupied by:</strong> {{ spot.occupied_by }}</div>
+                    <div><strong>Since:</strong> {{ spot.parking_since }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div v-else class="text-center">
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i>
+        Failed to load parking lot details. Please try again.
+      </div>
+      <a href="/static/js/admin.html" class="btn btn-primary">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+      </a>
+    </div>
+
+    <!-- Alert Messages -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 10000;">
+      <div v-if="alert.show" :class="`alert alert-${alert.type} alert-dismissible fade show`" role="alert">
+        {{ alert.message }}
+        <button type="button" class="btn-close" @click="alert.show = false"></button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          lotData: null,
+          loading: true,
+          alert: { show: false, type: 'info', message: '' }
+        };
+      },
+      computed: {
+        availableSpots() {
+          if (!this.lotData) return 0;
+          return this.lotData.spots.filter(spot => spot.status === 'A').length;
+        },
+        occupiedSpots() {
+          if (!this.lotData) return 0;
+          return this.lotData.spots.filter(spot => spot.status === 'O').length;
+        }
+      },
+      mounted() {
+        this.loadLotData();
+      },
+      methods: {
+        showAlert(type, message) {
+          this.alert = { show: true, type, message };
+          setTimeout(() => {
+            this.alert.show = false;
+          }, 5000);
+        },
+        getToken() {
+          return localStorage.getItem('token');
+        },
+        getLotId() {
+          const urlParams = new URLSearchParams(window.location.search);
+          return urlParams.get('id');
+        },
+        loadLotData() {
+          const lotId = this.getLotId();
+          if (!lotId) {
+            this.showAlert('danger', 'No lot ID provided');
+            this.loading = false;
+            return;
+          }
+
+          fetch(`/api/admin/lot-details/${lotId}`, {
+            headers: { Authorization: `Bearer ${this.getToken()}` }
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (res.ok) {
+              this.lotData = data;
+            } else {
+              this.showAlert('danger', data.msg || 'Failed to load lot details');
+            }
+          })
+          .catch(error => {
+            this.showAlert('danger', 'Error loading lot details');
+          })
+          .finally(() => {
+            this.loading = false;
+          });
+        }
+      }
+    }).mount('#viewLotApp');
+  </script>
+</body>
+</html> 

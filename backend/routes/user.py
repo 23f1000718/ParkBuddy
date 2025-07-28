@@ -1,42 +1,16 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from ..models import ParkingLot, ParkingSpot, Reservation, User
-from ..extensions import db
+from ..extensions import db, cache
 from .decorators import role_required
+from datetime import datetime
 
 user_bp = Blueprint('user', __name__)
-
-@user_bp.route('/user/dashboard')
-@role_required('user')
-def user_dashboard():
-    lots = ParkingLot.query.all()
-    return render_template('user_dashboard.html', lots=lots)
-
-
-@user_bp.route('/user/reserve/<int:lot_id>', methods=['GET', 'POST'])
-@role_required('user')
-def reserve(lot_id):
-    if request.method == 'POST':
-        user_id = get_jwt_identity()
-        spot = ParkingSpot.query.filter_by(lot_id=lot_id, status='A').first()
-        if not spot:
-            flash("No available spots")
-            return redirect(url_for('user.user_dashboard'))
-
-        # reserve spot
-        spot.status = 'O'
-        res = Reservation(spot_id=spot.id, user_id=user_id)
-        db.session.add(res)
-        db.session.commit()
-        flash("Spot reserved!")
-        return redirect(url_for('user.user_dashboard'))
-
-    return render_template('reserve.html', lot_id=lot_id)
 
 @user_bp.route('/api/user/reserve/<int:lot_id>', methods=['POST'])
 @role_required('user')
 def reserve_api(lot_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     spot = ParkingSpot.query.filter_by(lot_id=lot_id, status='A').first()
     if not spot:
         return jsonify(msg="No available spots"), 404
@@ -49,8 +23,7 @@ def reserve_api(lot_id):
 
 @user_bp.route('/api/user/release/<int:res_id>', methods=['POST'])
 @role_required('user')
-def release_api(res_id):
-    from datetime import datetime
+def release(res_id):
     res = Reservation.query.get_or_404(res_id)
     if res.leaving_timestamp:
         return jsonify(msg="Already released"), 400
@@ -67,16 +40,81 @@ def release_api(res_id):
 
 @user_bp.route('/api/user/reservations', methods=['GET'])
 @role_required('user')
-def reservations_history():
-    user_id = get_jwt_identity()
+def history():
+    user_id = int(get_jwt_identity())
     reservations = Reservation.query.filter_by(user_id=user_id).all()
     return jsonify([
         {
+            "id": res.id,
             "spot_id": res.spot_id,
             "lot": res.spot.lot.prime_location_name,
             "start": res.parking_timestamp.strftime("%Y-%m-%d %H:%M"),
             "end": res.leaving_timestamp.strftime("%Y-%m-%d %H:%M") if res.leaving_timestamp else None,
-            "cost": res.parking_cost
+            "cost": res.parking_cost,
+            "status": "Active" if not res.leaving_timestamp else "Completed"
         }
         for res in reservations
     ])
+
+@user_bp.route('/api/user/active-reservations', methods=['GET'])
+@role_required('user')
+def active_reservations():
+    user_id = int(get_jwt_identity())
+    active_reservations = Reservation.query.filter_by(
+        user_id=user_id, 
+        leaving_timestamp=None
+    ).all()
+    
+    return jsonify([
+        {
+            "id": res.id,
+            "spot_id": res.spot_id,
+            "lot": res.spot.lot.prime_location_name,
+            "start": res.parking_timestamp.strftime("%Y-%m-%d %H:%M"),
+            "parking_duration": round((datetime.utcnow() - res.parking_timestamp).total_seconds() / 3600, 2)
+        }
+        for res in active_reservations
+    ])
+
+@user_bp.route('/api/user/export-csv', methods=['POST'])
+@role_required('user')
+def trigger_csv_export():
+    user_id = int(get_jwt_identity())
+    # Import tasks here to avoid circular import
+    from ..tasks import export_user_csv
+    # Trigger background job
+    task = export_user_csv.delay(user_id)
+    return jsonify(msg="CSV export started", task_id=task.id), 200
+
+@user_bp.route('/api/user/stats', methods=['GET'])
+@role_required('user')
+@cache.cached(timeout=300)  # Cache for 5 minutes
+def user_stats():
+    user_id = int(get_jwt_identity())
+    
+    # Get user statistics
+    total_reservations = Reservation.query.filter_by(user_id=user_id).count()
+    completed_reservations = Reservation.query.filter_by(
+        user_id=user_id
+    ).filter(Reservation.leaving_timestamp.isnot(None)).count()
+    
+    total_cost = db.session.query(db.func.sum(Reservation.parking_cost)).filter_by(
+        user_id=user_id
+    ).scalar() or 0
+    
+    # Most used parking lot
+    lot_usage = db.session.query(
+        ParkingLot.prime_location_name,
+        db.func.count(Reservation.id)
+    ).join(ParkingSpot).join(Reservation).filter(
+        Reservation.user_id == user_id
+    ).group_by(ParkingLot.prime_location_name).order_by(
+        db.func.count(Reservation.id).desc()
+    ).first()
+    
+    return jsonify({
+        "total_reservations": total_reservations,
+        "completed_reservations": completed_reservations,
+        "total_cost": float(total_cost),
+        "most_used_lot": lot_usage[0] if lot_usage else "None"
+    })

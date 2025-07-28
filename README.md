@@ -133,8 +133,7 @@ celery -A celery_worker.celery beat --loglevel=info
 
 ### Admin Access
 - **Username**: `admin`
-- **Password**: `ChangeMe123` (as set in create_db.py)
-- **Note**: Change the admin password after first login for security
+- **Password**: `***` (wouldn't you like to know ;)
 
 ### User Registration
 1. Click on "Register" tab on the landing page

@@ -234,8 +234,14 @@
                     <td>{{ user.name }}</td>
                     <td>{{ user.email }}</td>
                     <td>
-                      <button @click="viewUserDetails(user.id)" class="btn btn-info btn-sm">
+                      <button @click="viewUserDetails(user.id)" class="btn btn-info btn-sm me-1">
                         <i class="bi bi-eye"></i> View Details
+                      </button>
+                      <button 
+                        @click="toggleBlockUser(user.id, user.is_blocked)" 
+                        :class="user.is_blocked ? 'btn btn-success btn-sm' : 'btn btn-warning btn-sm'">
+                        <i :class="user.is_blocked ? 'bi bi-unlock' : 'bi bi-lock'"></i>
+                        {{ user.is_blocked ? 'Unblock' : 'Block' }}
                       </button>
                     </td>
                   </tr>
@@ -254,6 +260,55 @@
         <button type="button" class="btn-close" @click="alert.show = false"></button>
       </div>
 >>>>>>> fa507b6 (Amped up UI and milestone 6 implemented)
+    </div>
+
+    <!-- User Details Modal -->
+    <div class="modal fade" id="userDetailsModal" tabindex="-1" aria-labelledby="userDetailsModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="userDetailsModalLabel">User Details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div v-if="selectedUser">
+              <p><strong>ID:</strong> {{ selectedUser.id }}</p>
+              <p><strong>Name:</strong> {{ selectedUser.name }}</p>
+              <p><strong>Email:</strong> {{ selectedUser.email }}</p>
+              <p><strong>Phone:</strong> {{ selectedUser.phone }}</p>
+              <p><strong>Blocked:</strong> {{ selectedUser.is_blocked ? 'Yes' : 'No' }}</p>
+              <!-- Add more fields as necessary -->
+            </div>
+            <div v-else>
+              <p class="text-muted">Loading user details...</p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inline User Details Modal -->
+    <div v-if="showUserModal" class="modal fade show" style="display:block;" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">User Details</h5>
+            <button type="button" class="btn-close" @click="showUserModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <p><strong>Name:</strong> {{ selectedUser.name }}</p>
+            <p><strong>Email:</strong> {{ selectedUser.email }}</p>
+            <p><strong>Status:</strong> 
+              <span :class="selectedUser.is_blocked ? 'badge bg-danger' : 'badge bg-success'">
+                {{ selectedUser.is_blocked ? 'Blocked' : 'Active' }}
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -274,7 +329,9 @@
             today_revenue: 0,
             most_popular_lot: 'None'
           },
-          alert: { show: false, type: 'info', message: '' }
+          alert: { show: false, type: 'info', message: '' },
+          selectedUser: {},
+          showUserModal: false
         };
       },
       computed: {
@@ -390,8 +447,37 @@
           }
         },
         viewUserDetails(userId) {
-          // Implement user details view
-          this.showAlert('info', 'User details view coming soon!');
+          fetch(`/api/admin/user-details/${userId}`, {
+            headers: { Authorization: this.getToken() }
+          })
+          .then(res => res.json().then(data => ({ status: res.status, data })))
+          .then(({ status, data }) => {
+            if (status === 200) {
+              this.selectedUser = data;
+              this.showUserModal = true;
+            } else {
+              this.showAlert('danger', data.msg || 'Unable to fetch user details');
+            }
+          });
+        },
+        toggleBlockUser(userId, isBlocked) {
+          fetch(`/api/admin/block-user/${userId}`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              Authorization: this.getToken()
+            },
+            body: JSON.stringify({ block: !isBlocked })
+          })
+          .then(res => res.json().then(data => ({ status: res.status, data })))
+          .then(({ status, data }) => {
+            if (status === 200) {
+              this.showAlert('success', isBlocked ? 'User unblocked' : 'User blocked');
+              this.fetchUsers();
+            } else {
+              this.showAlert('danger', data.msg || 'Unable to update user status');
+            }
+          });
         },
         createCharts() {
           // Spot Distribution Chart

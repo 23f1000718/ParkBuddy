@@ -230,24 +230,3 @@ def edit_lot(lot_id):
     db.session.commit()
     return jsonify(msg="Lot updated successfully"), 200
 
-@admin_bp.route('/api/admin/user-details/<int:user_id>', methods=['GET'])
-@role_required('admin')
-def user_details(user_id):
-    user = User.query.get_or_404(user_id)
-    return jsonify({
-        "id": user.id,
-        "email": user.email,
-        "name": user.full_name,
-        "is_blocked": getattr(user, "is_blocked", False)  # Add this field to your User model if not present
-    })
-
-@admin_bp.route('/api/admin/block-user/<int:user_id>', methods=['POST'])
-@role_required('admin')
-def block_user(user_id):
-    user = User.query.get_or_404(user_id)
-    data = request.get_json() or {}
-    block = data.get('block', True)
-    user.is_blocked = block
-    db.session.commit()
-    return jsonify(msg="User status updated", is_blocked=user.is_blocked), 200
-

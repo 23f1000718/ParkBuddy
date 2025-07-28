@@ -8,6 +8,7 @@ from datetime import datetime
 user_bp = Blueprint('user', __name__)
 
 @user_bp.route('/api/user/lots', methods=['GET'])
+@cache.cached(timeout=60)  # Cache for 1 minute
 @role_required('user')
 def get_lots():
     lots = ParkingLot.query.all()

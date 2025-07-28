@@ -1,11 +1,12 @@
 from flask import Blueprint, jsonify
 from ..models import ParkingLot
-from ..extensions import db
+from ..extensions import db, cache
 from flask_jwt_extended import jwt_required
 
 common_bp = Blueprint('common', __name__)
 
 @common_bp.route('/api/lots', methods=['GET'])
+@cache.cached(timeout=60)  # Cache available lots for 1 minute
 @jwt_required()
 def get_all_lots():
     lots = ParkingLot.query.all()

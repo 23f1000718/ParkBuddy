@@ -11,6 +11,8 @@ class Config:
     
     # Redis Configuration
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    CACHE_TYPE = 'RedisCache'
+    CACHE_REDIS_URL = REDIS_URL  # Flask-Caching
     
     # Celery Configuration
     CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')

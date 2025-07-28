@@ -167,13 +167,15 @@
           fetch(`/api/admin/lot-details/${lotId}`, {
             headers: { Authorization: `Bearer ${this.getToken()}` }
           })
-          .then(res => res.json())
-          .then(data => {
+          .then(res => {
             if (res.ok) {
-              this.lotData = data;
+              return res.json();
             } else {
-              this.showAlert('danger', data.msg || 'Failed to load lot details');
+              throw new Error('Failed to load lot details');
             }
+          })
+          .then(data => {
+            this.lotData = data;
           })
           .catch(error => {
             this.showAlert('danger', 'Error loading lot details');

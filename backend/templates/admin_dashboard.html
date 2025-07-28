@@ -1,16 +1,141 @@
 {% extends 'layout.html' %}
+{% block title %}Admin Dashboard{% endblock %}
+
 {% block content %}
-<h2>Admin Dashboard</h2>
-<a href="{{ url_for('admin.add_lot') }}">+ Add Parking Lot</a>
-<ul>
-  {% for lot in lots %}
-    <li>
-      {{ lot.prime_location_name }} | ₹{{ lot.price_per_hour }}/hr |
-      Spots: {{ lot.number_of_spots }}
-      <form action="{{ url_for('admin.delete_lot', lot_id=lot.id) }}" method="post" style="display:inline;">
-        <button type="submit">Delete</button>
-      </form>
-    </li>
-  {% endfor %}
-</ul>
+<div id="app" class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Admin Dashboard</h2>
+        <button @click="logout" class="btn btn-danger">Logout</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Total Lots</h5>
+                    <p class="card-text fs-4">{{ stats.total_lots }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Total Spots</h5>
+                    <p class="card-text fs-4">{{ stats.total_spots }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Registered Users</h5>
+                    <p class="card-text fs-4">{{ stats.total_users }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Parking Lots Management -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4>Parking Lots</h4>
+            <a href="{{ url_for('admin.add_lot') }}" class="btn btn-primary">+ Add New Lot</a>
+        </div>
+        <div class="card-body">
+            <ul class="list-group">
+                <li v-for="lot in lots" :key="lot.id" class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ lot.prime_location_name }}</strong> ({{ lot.address }}, {{ lot.pin_code }})
+                        <br>
+                        <small>Spots: {{ lot.number_of_spots }} | ₹{{ lot.price_per_hour }}/hr</small>
+                    </div>
+                    <div>
+                        <button @click="deleteLot(lot.id)" class="btn btn-danger btn-sm">Delete</button>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Registered Users -->
+    <div class="card">
+        <div class="card-header">
+            <h4>Registered Users</h4>
+        </div>
+        <div class="card-body">
+            <ul class="list-group">
+                <li v-for="user in users" :key="user.id" class="list-group-item">
+                    <strong>{{ user.full_name }}</strong> ({{ user.email }})
+                </li>
+            </ul>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://unpkg.com/vue@3"></script>
+<script>
+const { createApp } = Vue;
+
+createApp({
+    data() {
+        return {
+            stats: {},
+            lots: [],
+            users: [],
+            token: null
+        };
+    },
+    methods: {
+        async fetchData(url) {
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${this.token}` }
+            });
+            if (response.status === 401) {
+                this.logout();
+                return null;
+            }
+            if (!response.ok) {
+                console.error(`Failed to fetch from ${url}`);
+                return null;
+            }
+            return response.json();
+        },
+        async loadDashboard() {
+            this.stats = await this.fetchData('/api/admin/dashboard-stats') || {};
+            this.lots = await this.fetchData('/api/admin/lots') || [];
+            this.users = await this.fetchData('/api/admin/users') || [];
+        },
+        async deleteLot(lotId) {
+            if (!confirm('Are you sure you want to delete this lot?')) {
+                return;
+            }
+            const response = await fetch(`/api/admin/delete-lot/${lotId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${this.token}` }
+            });
+            if (response.ok) {
+                alert('Lot deleted successfully.');
+                this.loadDashboard(); // Refresh data
+            } else {
+                alert('Failed to delete lot.');
+            }
+        },
+        logout() {
+            localStorage.removeItem('admin_access_token');
+            window.location.href = "{{ url_for('main.admin_login') }}";
+        }
+    },
+    mounted() {
+        this.token = localStorage.getItem('admin_access_token');
+        if (!this.token) {
+            this.logout();
+            return;
+        }
+        this.loadDashboard();
+    }
+}).mount('#app');
+</script>
 {% endblock %}
+

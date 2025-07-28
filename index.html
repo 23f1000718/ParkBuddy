@@ -259,15 +259,17 @@
               password: this.registerData.password
             })
           })
-          .then(res => res.json())
-          .then(data => {
-            if (res.ok) {
-              this.showAlert('success', 'Registration successful! Please login.');
-              this.activeTab = 'login';
-              this.registerData = { full_name: '', email: '', password: '', confirm_password: '' };
-            } else {
-              this.showAlert('danger', data.msg || 'Registration failed');
-            }
+          .then(res => {
+            const res_ok = res.ok;
+            return res.json().then(data => {
+                if (res_ok) {
+                    this.showAlert('success', 'Registration successful! Please login.');
+                    this.activeTab = 'login';
+                    this.registerData = { full_name: '', email: '', password: '', confirm_password: '' };
+                } else {
+                    this.showAlert('danger', data.msg || 'Registration failed');
+                }
+            });
           })
           .catch(error => {
             this.showAlert('danger', 'Network error. Please try again.');

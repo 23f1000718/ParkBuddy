@@ -21,7 +21,7 @@ def create_app():
     from .routes.user import user_bp
     from .routes.auth import auth_bp
     from .routes.common import common_bp
-    
+
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(admin_bp)
     app.register_blueprint(user_bp)
@@ -35,6 +35,8 @@ def create_app():
     @app.route('/<path:path>')
     def static_files(path):
         return send_from_directory('..', path)
+
+
 
     return app
 

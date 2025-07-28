@@ -45,3 +45,5 @@ celerybeat.pid
 # OS
 .DS_Store
 Thumbs.db
+milestone doc.pdf
+project statement.docx

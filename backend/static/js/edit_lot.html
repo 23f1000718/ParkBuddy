@@ -134,19 +134,21 @@
           fetch(`/api/lots/${lotId}`, {
             headers: { Authorization: `Bearer ${this.getToken()}` }
           })
-          .then(res => res.json())
-          .then(data => {
+          .then(res => {
             if (res.ok) {
-              this.lotData = {
-                name: data.prime_location_name,
-                price: data.price_per_hour,
-                address: data.address,
-                pincode: data.pin_code,
-                spots: data.number_of_spots
-              };
+              return res.json();
             } else {
-              this.showAlert('danger', data.msg || 'Failed to load lot data');
+              throw new Error('Failed to load lot data');
             }
+          })
+          .then(data => {
+            this.lotData = {
+              name: data.prime_location_name,
+              price: data.price_per_hour,
+              address: data.address,
+              pincode: data.pin_code,
+              spots: data.number_of_spots
+            };
           })
           .catch(error => {
             this.showAlert('danger', 'Error loading lot data');

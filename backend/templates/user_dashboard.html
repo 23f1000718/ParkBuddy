@@ -1,12 +1,85 @@
 {% extends 'layout.html' %}
+{% block title %}User Dashboard{% endblock %}
+
 {% block content %}
-<h2>User Dashboard</h2>
-<ul>
-  {% for lot in lots %}
-    <li>
-      {{ lot.prime_location_name }} | ₹{{ lot.price_per_hour }}/hr
-      <a href="{{ url_for('user.reserve', lot_id=lot.id) }}">Reserve</a>
-    </li>
-  {% endfor %}
-</ul>
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>User Dashboard</h2>
+        <button id="logout-btn" class="btn btn-danger">Logout</button>
+    </div>
+    <h4>Available Parking Lots</h4>
+    <div id="lots-container" class="list-group">
+        <!-- Lots will be dynamically inserted here -->
+    </div>
+    <div id="loading" class="text-center mt-4">
+        <p>Loading...</p>
+    </div>
+    <div id="error-message" class="alert alert-danger mt-3 d-none"></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    const token = localStorage.getItem('access_token');
+    const errorMessage = document.getElementById('error-message');
+    const lotsContainer = document.getElementById('lots-container');
+    const loadingIndicator = document.getElementById('loading');
+
+    if (!token) {
+        window.location.href = "/login";
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/user/lots', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.status === 401) {
+            // Token is invalid or expired
+            localStorage.removeItem('access_token');
+            window.location.href = "/login";
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch parking lots.');
+        }
+
+        const lots = await response.json();
+        loadingIndicator.classList.add('d-none');
+
+        if (lots.length === 0) {
+            lotsContainer.innerHTML = '<p>No parking lots available at the moment.</p>';
+        } else {
+            lots.forEach(lot => {
+                const lotElement = document.createElement('a');
+                lotElement.href = `/reserve/${lot.id}`; // Assuming a reservation page route
+                lotElement.className = 'list-group-item list-group-item-action';
+                lotElement.innerHTML = `
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">${lot.prime_location_name}</h5>
+                        <small>₹${lot.price_per_hour}/hr</small>
+                    </div>
+                    <p class="mb-1">${lot.address}, ${lot.pin_code}</p>
+                    <small>Spots available: ${lot.number_of_spots}</small>
+                `;
+                lotsContainer.appendChild(lotElement);
+            });
+        }
+
+    } catch (error) {
+        loadingIndicator.classList.add('d-none');
+        errorMessage.textContent = error.message;
+        errorMessage.classList.remove('d-none');
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        localStorage.removeItem('access_token');
+        window.location.href = "/login";
+    });
+});
+</script>
 {% endblock %}

@@ -7,6 +7,22 @@ from datetime import datetime
 
 user_bp = Blueprint('user', __name__)
 
+@user_bp.route('/api/user/lots', methods=['GET'])
+@role_required('user')
+def get_lots():
+    lots = ParkingLot.query.all()
+    return jsonify([
+        {
+            "id": lot.id,
+            "prime_location_name": lot.prime_location_name,
+            "address": lot.address,
+            "pin_code": lot.pin_code,
+            "price_per_hour": lot.price_per_hour,
+            "available_spots": len([s for s in lot.spots if s.status == 'A'])
+        }
+        for lot in lots
+    ])
+
 @user_bp.route('/api/user/reserve/<int:lot_id>', methods=['POST'])
 @role_required('user')
 def reserve_api(lot_id):
@@ -102,13 +118,19 @@ def user_stats():
         user_id=user_id
     ).scalar() or 0
     
-    # Most used parking lot
+    # Most used parking lot with explicit joins
     lot_usage = db.session.query(
         ParkingLot.prime_location_name,
         db.func.count(Reservation.id)
-    ).join(ParkingSpot).join(Reservation).filter(
+    ).select_from(Reservation).join(
+        ParkingSpot, Reservation.spot_id == ParkingSpot.id
+    ).join(
+        ParkingLot, ParkingSpot.lot_id == ParkingLot.id
+    ).filter(
         Reservation.user_id == user_id
-    ).group_by(ParkingLot.prime_location_name).order_by(
+    ).group_by(
+        ParkingLot.prime_location_name
+    ).order_by(
         db.func.count(Reservation.id).desc()
     ).first()
     

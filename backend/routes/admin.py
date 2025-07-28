@@ -1,7 +1,7 @@
 from flask import Blueprint, request, render_template, redirect, url_for, flash, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import User, ParkingLot, ParkingSpot
-from extensions import db
+from ..models import User, ParkingLot, ParkingSpot
+from ..extensions import db
 from .decorators import role_required
 
 admin_bp = Blueprint('admin', __name__)

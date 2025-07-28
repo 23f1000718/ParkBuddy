@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
-from models import ParkingLot
-from extensions import db
+from ..models import ParkingLot
+from ..extensions import db
 from flask_jwt_extended import jwt_required
 
 common_bp = Blueprint('common', __name__)

@@ -5,8 +5,8 @@ from flask_jwt_extended import (
     get_jwt_identity,
     get_jwt
 )
-from extensions import db
-from models import User, Admin
+from ..extensions import db
+from ..models import User, Admin
 from .decorators import role_required
 
 auth_bp = Blueprint('auth', __name__)

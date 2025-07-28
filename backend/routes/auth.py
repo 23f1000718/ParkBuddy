@@ -5,8 +5,13 @@ from flask_jwt_extended import (
     get_jwt_identity,
     get_jwt
 )
+<<<<<<< HEAD
 from extensions import db
 from models import User, Admin
+=======
+from ..extensions import db
+from ..models import User, Admin
+>>>>>>> fa507b6 (Amped up UI and milestone 6 implemented)
 from .decorators import role_required
 
 auth_bp = Blueprint('auth', __name__)
@@ -44,7 +49,7 @@ def login():
         return jsonify(msg="bad credentials"), 401
 
     additional_claims = {"role": "user"}
-    access_token = create_access_token(identity=user.id, additional_claims=additional_claims)
+    access_token = create_access_token(identity=str(user.id), additional_claims=additional_claims)
     return jsonify(access_token=access_token), 200
 
 
@@ -60,7 +65,7 @@ def admin_login():
         return jsonify(msg="bad credentials"), 401
 
     claims = {"role": "admin"}
-    token = create_access_token(identity=admin.id, additional_claims=claims)
+    token = create_access_token(identity=str(admin.id), additional_claims=claims)
     return jsonify(access_token=token), 200
 
 
@@ -78,7 +83,7 @@ def who_am_i():
 @auth_bp.route('/reserve-example', methods=['POST'])
 @role_required('user')
 def example_reserve():
-    # You know by now this will only run for a valid “user” token
+    # You know by now this will only run for a valid "user" token
     return jsonify(msg="User may reserve."), 200
 
 # Example: an admin-only route

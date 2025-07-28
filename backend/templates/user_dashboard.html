@@ -1,0 +1,12 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>User Dashboard</h2>
+<ul>
+  {% for lot in lots %}
+    <li>
+      {{ lot.prime_location_name }} | ₹{{ lot.price_per_hour }}/hr
+      <a href="{{ url_for('user.reserve', lot_id=lot.id) }}">Reserve</a>
+    </li>
+  {% endfor %}
+</ul>
+{% endblock %}

@@ -1,6 +1,5 @@
-from .app import create_app
-from .extensions import db
-from .models import Admin
+from app import create_app, db
+from models import Admin
 
 app = create_app()
 

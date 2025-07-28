@@ -1,0 +1,16 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Admin Dashboard</h2>
+<a href="{{ url_for('admin.add_lot') }}">+ Add Parking Lot</a>
+<ul>
+  {% for lot in lots %}
+    <li>
+      {{ lot.prime_location_name }} | ₹{{ lot.price_per_hour }}/hr |
+      Spots: {{ lot.number_of_spots }}
+      <form action="{{ url_for('admin.delete_lot', lot_id=lot.id) }}" method="post" style="display:inline;">
+        <button type="submit">Delete</button>
+      </form>
+    </li>
+  {% endfor %}
+</ul>
+{% endblock %}

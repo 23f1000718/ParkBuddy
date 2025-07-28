@@ -1,9 +1,9 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<<<<<<< HEAD
   <title>ParkBuddy</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
@@ -13,40 +13,10 @@
     .login-card { max-width: 400px; margin: 50px auto; }
     .dashboard-header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     iframe { border: none; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-=======
-  <title>ParkBuddy - Vehicle Parking Management</title>
-  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-  <style>
-    .hero-section {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 4rem 0;
-    }
-    .feature-card {
-      transition: transform 0.3s ease;
-    }
-    .feature-card:hover {
-      transform: translateY(-5px);
-    }
-    /* Fix iframe modal issues */
-    iframe {
-      border: none;
-      width: 100%;
-      height: 100vh;
-    }
-    .dashboard-container {
-      position: relative;
-      height: 100vh;
-      overflow: hidden;
-    }
->>>>>>> fa507b6 (Amped up UI and milestone 6 implemented)
   </style>
 </head>
 <body>
   <div id="app">
-<<<<<<< HEAD
     <div class="main-container">
       <div v-if="!token" class="login-card">
         <div class="card">
@@ -94,151 +64,6 @@
         <div v-else-if="role === 'admin'">
           <iframe src="/static/js/admin.html" width="100%" height="600px"></iframe>
         </div>
-=======
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-      <div class="container">
-        <a class="navbar-brand" href="#">
-          <i class="bi bi-car-front"></i> ParkBuddy
-        </a>
-        <div class="navbar-nav ms-auto" v-if="token">
-          <span class="navbar-text me-3">
-            Welcome, {{ role === 'admin' ? 'Administrator' : 'User' }}
-          </span>
-          <button @click="logout" class="btn btn-outline-light btn-sm">
-            <i class="bi bi-box-arrow-right"></i> Logout
-          </button>
-        </div>
-      </div>
-    </nav>
-
-    <!-- Hero Section -->
-    <div class="hero-section text-center" v-if="!token">
-      <div class="container">
-        <h1 class="display-4 mb-4">
-          <i class="bi bi-car-front"></i> ParkBuddy
-        </h1>
-        <p class="lead mb-4">Smart Vehicle Parking Management System</p>
-        <div class="row justify-content-center">
-          <div class="col-md-8">
-            <div class="row g-4">
-              <div class="col-md-4">
-                <div class="card feature-card h-100">
-                  <div class="card-body text-center">
-                    <i class="bi bi-geo-alt text-primary" style="font-size: 2rem;"></i>
-                    <h5 class="card-title mt-3">Multiple Locations</h5>
-                    <p class="card-text">Park at various locations across the city</p>
-                  </div>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="card feature-card h-100">
-                  <div class="card-body text-center">
-                    <i class="bi bi-clock text-success" style="font-size: 2rem;"></i>
-                    <h5 class="card-title mt-3">24/7 Access</h5>
-                    <p class="card-text">Book and release parking spots anytime</p>
-                  </div>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="card feature-card h-100">
-                  <div class="card-body text-center">
-                    <i class="bi bi-shield-check text-warning" style="font-size: 2rem;"></i>
-                    <h5 class="card-title mt-3">Secure & Reliable</h5>
-                    <p class="card-text">Safe and monitored parking spaces</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Login/Register Section -->
-    <div class="container mt-5" v-if="!token">
-      <div class="row justify-content-center">
-        <div class="col-md-6">
-          <div class="card shadow">
-            <div class="card-header">
-              <ul class="nav nav-tabs card-header-tabs" id="authTabs">
-                <li class="nav-item">
-                  <a class="nav-link active" @click="activeTab = 'login'" href="#login">Login</a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" @click="activeTab = 'register'" href="#register">Register</a>
-                </li>
-              </ul>
-            </div>
-            <div class="card-body">
-              <!-- Login Form -->
-              <div v-if="activeTab === 'login'">
-                <h5 class="card-title mb-4">Login to ParkBuddy</h5>
-                <div class="mb-3">
-                  <label class="form-label">Email/Username</label>
-                  <input v-model="loginData.email" type="text" class="form-control" placeholder="Enter email or username" />
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Password</label>
-                  <input v-model="loginData.password" type="password" class="form-control" placeholder="Enter password" />
-                </div>
-                <div class="d-grid gap-2">
-                  <button @click="login('user')" class="btn btn-primary">
-                    <i class="bi bi-person"></i> User Login
-                  </button>
-                  <button @click="login('admin')" class="btn btn-secondary">
-                    <i class="bi bi-shield"></i> Admin Login
-                  </button>
-                </div>
-              </div>
-
-              <!-- Register Form -->
-              <div v-if="activeTab === 'register'">
-                <h5 class="card-title mb-4">Create New Account</h5>
-                <div class="mb-3">
-                  <label class="form-label">Full Name</label>
-                  <input v-model="registerData.full_name" type="text" class="form-control" placeholder="Enter your full name" />
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Email</label>
-                  <input v-model="registerData.email" type="email" class="form-control" placeholder="Enter your email" />
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Password</label>
-                  <input v-model="registerData.password" type="password" class="form-control" placeholder="Enter password" />
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Confirm Password</label>
-                  <input v-model="registerData.confirm_password" type="password" class="form-control" placeholder="Confirm password" />
-                </div>
-                <div class="d-grid">
-                  <button @click="register" class="btn btn-success">
-                    <i class="bi bi-person-plus"></i> Register
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Dashboard Section -->
-    <div v-if="token" class="dashboard-container">
-      <div v-if="role === 'user'">
-        <iframe src="/static/js/user.html" frameborder="0"></iframe>
-      </div>
-      <div v-else-if="role === 'admin'">
-        <iframe src="/static/js/admin.html" frameborder="0"></iframe>
-      </div>
-    </div>
-
-    <!-- Alert Messages -->
-    <div class="position-fixed top-0 end-0 p-3" style="z-index: 1050;">
-      <div v-if="alert.show" :class="`alert alert-${alert.type} alert-dismissible fade show`" role="alert">
-        {{ alert.message }}
-        <button type="button" class="btn-close" @click="alert.show = false"></button>
->>>>>>> fa507b6 (Amped up UI and milestone 6 implemented)
       </div>
     </div>
   </div>
@@ -250,26 +75,11 @@
         return {
           token: localStorage.getItem('token'),
           role: localStorage.getItem('role'),
-          activeTab: 'login',
           loginData: { email: '', password: '' },
-          registerData: { 
-            full_name: '', 
-            email: '', 
-            password: '', 
-            confirm_password: '' 
-          },
-          alert: { show: false, type: 'info', message: '' }
         };
       },
       methods: {
-        showAlert(type, message) {
-          this.alert = { show: true, type, message };
-          setTimeout(() => {
-            this.alert.show = false;
-          }, 5000);
-        },
         login(type) {
-<<<<<<< HEAD
           const url = type === 'admin'
             ? 'http://localhost:5000/api/auth/admin/login'
             : 'http://localhost:5000/api/auth/login';
@@ -282,22 +92,6 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-=======
-          if (!this.loginData.email || !this.loginData.password) {
-            this.showAlert('warning', 'Please fill in all fields');
-            return;
-          }
-
-          const url = type === 'admin' ? '/api/auth/admin/login' : '/api/auth/login';
-          const data = type === 'admin' 
-            ? { username: this.loginData.email, password: this.loginData.password }
-            : this.loginData;
-
-          fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
->>>>>>> fa507b6 (Amped up UI and milestone 6 implemented)
           })
           .then(res => res.json())
           .then(data => {
@@ -306,9 +100,7 @@
               this.role = type;
               localStorage.setItem('token', data.access_token);
               localStorage.setItem('role', type);
-              this.showAlert('success', `Welcome! You are logged in as ${type}`);
             } else {
-<<<<<<< HEAD
               alert(data.msg || 'Login failed');
               console.error('Login failed:', data);
             }
@@ -316,55 +108,12 @@
           .catch(err => {
             console.error('Login error:', err);
             alert('Login failed. Please check if the server is running.');
-=======
-              this.showAlert('danger', data.msg || 'Login failed');
-            }
-          })
-          .catch(error => {
-            this.showAlert('danger', 'Network error. Please try again.');
-          });
-        },
-        register() {
-          if (!this.registerData.full_name || !this.registerData.email || 
-              !this.registerData.password || !this.registerData.confirm_password) {
-            this.showAlert('warning', 'Please fill in all fields');
-            return;
-          }
-
-          if (this.registerData.password !== this.registerData.confirm_password) {
-            this.showAlert('warning', 'Passwords do not match');
-            return;
-          }
-
-          fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              full_name: this.registerData.full_name,
-              email: this.registerData.email,
-              password: this.registerData.password
-            })
-          })
-          .then(res => res.json())
-          .then(data => {
-            if (res.ok) {
-              this.showAlert('success', 'Registration successful! Please login.');
-              this.activeTab = 'login';
-              this.registerData = { full_name: '', email: '', password: '', confirm_password: '' };
-            } else {
-              this.showAlert('danger', data.msg || 'Registration failed');
-            }
-          })
-          .catch(error => {
-            this.showAlert('danger', 'Network error. Please try again.');
->>>>>>> fa507b6 (Amped up UI and milestone 6 implemented)
           });
         },
         logout() {
           localStorage.clear();
           this.token = null;
           this.role = null;
-          this.showAlert('info', 'You have been logged out');
         }
       }
     }).mount('#app');

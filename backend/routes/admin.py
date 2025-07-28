@@ -112,9 +112,78 @@ def create_lot():
 def list_users():
     users = User.query.all()
     return jsonify([
-        {"id": u.id, "email": u.email, "name": u.full_name}
+        {"id": u.id, "email": u.email, "name": u.full_name, "is_active": u.is_active}
         for u in users
     ])
+
+@admin_bp.route('/api/admin/user-details/<int:user_id>', methods=['GET'])
+@role_required('admin')
+def get_user_details(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Get user's reservation statistics
+    total_reservations = Reservation.query.filter_by(user_id=user_id).count()
+    completed_reservations = Reservation.query.filter_by(
+        user_id=user_id
+    ).filter(Reservation.leaving_timestamp.isnot(None)).count()
+    
+    total_spent = db.session.query(func.sum(Reservation.parking_cost)).filter_by(
+        user_id=user_id
+    ).scalar() or 0
+    
+    # Get recent reservations
+    recent_reservations = Reservation.query.filter_by(user_id=user_id).join(
+        ParkingSpot
+    ).join(ParkingLot).order_by(Reservation.parking_timestamp.desc()).limit(10).all()
+    
+    reservations_data = []
+    for res in recent_reservations:
+        reservations_data.append({
+            "id": res.id,
+            "lot_name": res.spot.lot.prime_location_name,
+            "spot_id": res.spot_id,
+            "start_time": res.parking_timestamp.strftime("%Y-%m-%d %H:%M"),
+            "end_time": res.leaving_timestamp.strftime("%Y-%m-%d %H:%M") if res.leaving_timestamp else None,
+            "cost": res.parking_cost,
+            "status": "Completed" if res.leaving_timestamp else "Active"
+        })
+    
+    return jsonify({
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.full_name,
+            "is_active": user.is_active
+        },
+        "stats": {
+            "total_reservations": total_reservations,
+            "completed_reservations": completed_reservations,
+            "total_spent": float(total_spent)
+        },
+        "recent_reservations": reservations_data
+    })
+
+@admin_bp.route('/api/admin/block-user/<int:user_id>', methods=['POST'])
+@role_required('admin')
+def block_user(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Check if user has active reservations when trying to block
+    if user.is_active:  # Only check when blocking, not unblocking
+        active_reservations = Reservation.query.filter_by(
+            user_id=user_id,
+            leaving_timestamp=None
+        ).count()
+        
+        if active_reservations > 0:
+            return jsonify(msg="Cannot block user with active reservations. Please ask them to release their spots first."), 400
+    
+    # Toggle user active status
+    user.is_active = not user.is_active
+    db.session.commit()
+    
+    action = "unblocked" if user.is_active else "blocked"
+    return jsonify(msg=f"User {action} successfully"), 200
 
 @admin_bp.route('/api/admin/dashboard-stats', methods=['GET'])
 @role_required('admin')

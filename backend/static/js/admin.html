@@ -61,7 +61,7 @@
         <div class="card bg-danger text-white">
           <div class="card-body text-center">
             <h4>₹{{ stats.today_revenue }}</h4>
-            <small>Today's Revenue</small>
+            <small>Revenue</small>
           </div>
         </div>
       </div>
@@ -181,8 +181,12 @@
                     <td>{{ user.name }}</td>
                     <td>{{ user.email }}</td>
                     <td>
-                      <button @click="viewUserDetails(user.id)" class="btn btn-info btn-sm">
+                      <button @click="viewUserDetails(user.id)" class="btn btn-info btn-sm me-1">
                         <i class="bi bi-eye"></i> View Details
+                      </button>
+                      <button @click="blockUser(user.id)" :class="user.is_active ? 'btn btn-warning btn-sm' : 'btn btn-success btn-sm'">
+                        <i :class="user.is_active ? 'bi bi-lock' : 'bi bi-unlock'"></i>
+                        {{ user.is_active ? 'Block' : 'Unblock' }}
                       </button>
                     </td>
                   </tr>
@@ -291,8 +295,52 @@
           }
         },
         viewUserDetails(userId) {
-          // Implement user details view
-          this.showAlert('info', 'User details view coming soon!');
+          fetch(`/api/admin/user-details/${userId}`, {
+            headers: { Authorization: `Bearer ${this.getToken()}` }
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.user) {
+              const user = data.user;
+              const stats = data.stats;
+              const reservations = data.recent_reservations;
+              
+              let reservationsList = reservations.map(r => 
+                `• ${r.lot_name} (${r.start_time} - ${r.end_time || 'Active'}) - ₹${r.cost || 'Pending'}`
+              ).join('\n');
+              
+              const message = `User Details:\n\nName: ${user.name}\nEmail: ${user.email}\nStatus: ${user.is_active ? 'Active' : 'Blocked'}\n\nStatistics:\n• Total Reservations: ${stats.total_reservations}\n• Completed: ${stats.completed_reservations}\n• Total Spent: ₹${stats.total_spent}\n\nRecent Reservations:\n${reservationsList || 'No reservations found'}`;
+              
+              alert(message);
+            } else {
+              this.showAlert('danger', 'Failed to load user details');
+            }
+          })
+          .catch(error => this.showAlert('danger', 'Error loading user details'));
+        },
+        blockUser(userId) {
+          const user = this.users.find(u => u.id === userId);
+          const action = user.is_active ? 'block' : 'unblock';
+          
+          if (confirm(`Are you sure you want to ${action} this user?`)) {
+            fetch(`/api/admin/block-user/${userId}`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${this.getToken()}` }
+            })
+            .then(res => {
+              if (res.ok) {
+                return res.json().then(data => {
+                  this.showAlert('success', data.msg);
+                  this.fetchUsers(); // Refresh user list
+                });
+              } else {
+                return res.json().then(data => {
+                  this.showAlert('danger', data.msg || `Failed to ${action} user`);
+                });
+              }
+            })
+            .catch(error => this.showAlert('danger', `Error ${action}ing user`));
+          }
         },
         createCharts() {
           // Spot Distribution Chart

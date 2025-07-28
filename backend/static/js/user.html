@@ -224,7 +224,9 @@
             total_cost: 0,
             most_used_lot: 'None'
           },
-          alert: { show: false, type: 'info', message: '' }
+          alert: { show: false, type: 'info', message: '' },
+          usageChart: null,
+          costChart: null
         };
       },
       mounted() {
@@ -244,7 +246,7 @@
           return localStorage.getItem('token');
         },
         loadData() {
-          fetch('/api/lots', {
+          fetch('/api/user/lots', {
             headers: { Authorization: `Bearer ${this.getToken()}` }
           })
           .then(res => res.json())
@@ -283,15 +285,18 @@
             method: 'POST',
             headers: { Authorization: `Bearer ${this.getToken()}` }
           })
-          .then(res => res.json())
-          .then(data => {
+          .then(res => {
             if (res.ok) {
-              this.showAlert('success', 'Spot reserved successfully!');
-              this.loadData();
-              this.loadActiveReservations();
-              this.loadStats();
+              return res.json().then(data => {
+                this.showAlert('success', 'Spot reserved successfully!');
+                this.loadData();
+                this.loadActiveReservations();
+                this.loadStats();
+              });
             } else {
-              this.showAlert('danger', data.msg || 'Failed to reserve spot');
+              return res.json().then(data => {
+                this.showAlert('danger', data.msg || 'Failed to reserve spot');
+              });
             }
           })
           .catch(error => this.showAlert('danger', 'Error reserving spot'));
@@ -302,15 +307,19 @@
               method: 'POST',
               headers: { Authorization: `Bearer ${this.getToken()}` }
             })
-            .then(res => res.json())
-            .then(data => {
+            .then(res => {
               if (res.ok) {
-                this.showAlert('success', `Spot released! Cost: ₹${data.cost}`);
-                this.loadActiveReservations();
-                this.loadReservations();
-                this.loadStats();
+                return res.json().then(data => {
+                  this.showAlert('success', `Spot released! Cost: ₹${data.cost}`);
+                  this.loadActiveReservations();
+                  this.loadReservations();
+                  this.loadStats();
+                  this.loadData();
+                });
               } else {
-                this.showAlert('danger', data.msg || 'Failed to release spot');
+                return res.json().then(data => {
+                  this.showAlert('danger', data.msg || 'Failed to release spot');
+                });
               }
             })
             .catch(error => this.showAlert('danger', 'Error releasing spot'));
@@ -334,18 +343,29 @@
           return `${diffHours.toFixed(1)}h`;
         },
         createCharts() {
-          // Usage Chart
+          // Destroy existing charts if they exist
+          if (this.usageChart) {
+            this.usageChart.destroy();
+          }
+          if (this.costChart) {
+            this.costChart.destroy();
+          }
+
+          // Usage Chart - Monthly reservations
           const usageCtx = document.getElementById('usageChart');
           if (usageCtx) {
-            new Chart(usageCtx, {
-              type: 'line',
+            this.usageChart = new Chart(usageCtx, {
+              type: 'bar',
               data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                labels: ['Total', 'Completed', 'Active'],
                 datasets: [{
                   label: 'Reservations',
-                  data: [12, 19, 3, 5, 2, 3],
-                  borderColor: 'rgb(75, 192, 192)',
-                  tension: 0.1
+                  data: [this.stats.total_reservations, this.stats.completed_reservations, this.activeReservations.length],
+                  backgroundColor: [
+                    'rgb(54, 162, 235)',
+                    'rgb(75, 192, 192)',
+                    'rgb(255, 205, 86)'
+                  ]
                 }]
               },
               options: {
@@ -359,15 +379,28 @@
             });
           }
 
-          // Cost Chart
+          // Cost Chart - Show actual spending breakdown
           const costCtx = document.getElementById('costChart');
           if (costCtx) {
-            new Chart(costCtx, {
+            // Calculate cost for active reservations (estimated based on current duration)
+            let activeCost = 0;
+            this.activeReservations.forEach(res => {
+              const duration = parseFloat(res.parking_duration) || 0;
+              const rate = this.lots.find(lot => lot.prime_location_name === res.lot)?.price_per_hour || 0;
+              // Apply minimum 1-hour billing for estimation
+              const billableHours = Math.max(1.0, duration);
+              activeCost += billableHours * rate;
+            });
+            
+            const completedCost = this.stats.total_cost || 0;
+            const totalCost = completedCost + activeCost;
+            
+            this.costChart = new Chart(costCtx, {
               type: 'doughnut',
               data: {
-                labels: ['Completed', 'Active'],
+                labels: [`Completed (₹${completedCost.toFixed(2)})`, `Active (₹${activeCost.toFixed(2)})`],
                 datasets: [{
-                  data: [this.stats.completed_reservations, this.activeReservations.length],
+                  data: [completedCost || 0.1, activeCost || 0.1], // Avoid zero values for better display
                   backgroundColor: [
                     'rgb(54, 162, 235)',
                     'rgb(255, 205, 86)'
@@ -375,7 +408,22 @@
                 }]
               },
               options: {
-                responsive: true
+                responsive: true,
+                plugins: {
+                  legend: {
+                    position: 'bottom'
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: function(context) {
+                        const value = context.parsed;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = ((value / total) * 100).toFixed(1);
+                        return `${context.label}: ${percentage}%`;
+                      }
+                    }
+                  }
+                }
               }
             });
           }

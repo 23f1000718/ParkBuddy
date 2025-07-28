@@ -49,7 +49,10 @@ def release(res_id):
 
     duration_hours = (res.leaving_timestamp - res.parking_timestamp).total_seconds() / 3600
     rate = res.spot.lot.price_per_hour
-    res.parking_cost = round(duration_hours * rate, 2)
+    
+    # Minimum billing: 1 hour, then charge for actual time if more than 1 hour
+    billable_hours = max(1.0, duration_hours)
+    res.parking_cost = round(billable_hours * rate, 2)
 
     db.session.commit()
     return jsonify(msg="Spot released", cost=res.parking_cost), 200

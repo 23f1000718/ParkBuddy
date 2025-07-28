@@ -15,6 +15,16 @@
         <p>Loading...</p>
     </div>
     <div id="error-message" class="alert alert-danger mt-3 d-none"></div>
+
+    <h4 class="mt-5">Active Reservations</h4>
+    <div id="active-reservations-container" class="list-group mb-4">
+        <!-- Active reservations will be inserted here -->
+    </div>
+
+    <h4>Reservation History</h4>
+    <div id="history-container" class="list-group mb-4">
+        <!-- Reservation history will be inserted here -->
+    </div>
 </div>
 
 <script>
@@ -23,58 +33,185 @@ document.addEventListener('DOMContentLoaded', async function() {
     const errorMessage = document.getElementById('error-message');
     const lotsContainer = document.getElementById('lots-container');
     const loadingIndicator = document.getElementById('loading');
+    const activeReservationsContainer = document.getElementById('active-reservations-container');
+    const historyContainer = document.getElementById('history-container');
 
     if (!token) {
         window.location.href = "/login";
         return;
     }
 
-    try {
-        const response = await fetch('/api/user/lots', {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.status === 401) {
-            // Token is invalid or expired
-            localStorage.removeItem('access_token');
-            window.location.href = "/login";
-            return;
-        }
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch parking lots.');
-        }
-
-        const lots = await response.json();
-        loadingIndicator.classList.add('d-none');
-
-        if (lots.length === 0) {
-            lotsContainer.innerHTML = '<p>No parking lots available at the moment.</p>';
-        } else {
-            lots.forEach(lot => {
-                const lotElement = document.createElement('a');
-                lotElement.href = `/reserve/${lot.id}`; // Assuming a reservation page route
-                lotElement.className = 'list-group-item list-group-item-action';
-                lotElement.innerHTML = `
-                    <div class="d-flex w-100 justify-content-between">
-                        <h5 class="mb-1">${lot.prime_location_name}</h5>
-                        <small>₹${lot.price_per_hour}/hr</small>
-                    </div>
-                    <p class="mb-1">${lot.address}, ${lot.pin_code}</p>
-                    <small>Spots available: ${lot.number_of_spots}</small>
-                `;
-                lotsContainer.appendChild(lotElement);
+    async function loadLots() {
+        lotsContainer.innerHTML = '';
+        loadingIndicator.classList.remove('d-none');
+        try {
+            const response = await fetch('/api/user/lots', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
             });
-        }
 
-    } catch (error) {
-        loadingIndicator.classList.add('d-none');
-        errorMessage.textContent = error.message;
-        errorMessage.classList.remove('d-none');
+            if (response.status === 401) {
+                localStorage.removeItem('access_token');
+                window.location.href = "/login";
+                return;
+            }
+            if (!response.ok) {
+                throw new Error('Failed to fetch parking lots.');
+            }
+            const lots = await response.json();
+            loadingIndicator.classList.add('d-none');
+            if (lots.length === 0) {
+                lotsContainer.innerHTML = '<p>No parking lots available at the moment.</p>';
+            } else {
+                lots.forEach(lot => {
+                    const lotElement = document.createElement('div');
+                    lotElement.className = 'list-group-item';
+                    lotElement.innerHTML = `
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-1">${lot.prime_location_name}</h5>
+                                <small>₹${lot.price_per_hour}/hr</small><br>
+                                <small>${lot.address}, ${lot.pin_code}</small><br>
+                                <small>Spots available: ${lot.available_spots}</small>
+                            </div>
+                            <button class="btn btn-primary reserve-btn" data-lot-id="${lot.id}" ${lot.available_spots === 0 ? 'disabled' : ''}>Reserve</button>
+                        </div>
+                    `;
+                    lotsContainer.appendChild(lotElement);
+                });
+            }
+        } catch (error) {
+            loadingIndicator.classList.add('d-none');
+            errorMessage.textContent = error.message;
+            errorMessage.classList.remove('d-none');
+        }
     }
+
+    async function loadActiveReservations() {
+        activeReservationsContainer.innerHTML = '';
+        try {
+            const response = await fetch('/api/user/active-reservations', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) throw new Error('Failed to fetch active reservations.');
+            const reservations = await response.json();
+            if (reservations.length === 0) {
+                activeReservationsContainer.innerHTML = '<p class="text-muted">No active reservations.</p>';
+            } else {
+                reservations.forEach(res => {
+                    const resElement = document.createElement('div');
+                    resElement.className = 'list-group-item';
+                    resElement.innerHTML = `
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <div>
+                                <strong>Lot:</strong> ${res.lot} <br>
+                                <strong>Spot ID:</strong> ${res.spot_id} <br>
+                                <strong>Start:</strong> ${res.start} <br>
+                                <strong>Duration:</strong> ${res.parking_duration} hrs
+                            </div>
+                            <button class="btn btn-danger release-btn" data-res-id="${res.id}">Release</button>
+                        </div>
+                    `;
+                    activeReservationsContainer.appendChild(resElement);
+                });
+            }
+        } catch (error) {
+            activeReservationsContainer.innerHTML = '<p class="text-danger">Error loading active reservations.</p>';
+        }
+    }
+
+    async function loadHistory() {
+        historyContainer.innerHTML = '';
+        try {
+            const response = await fetch('/api/user/reservations', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) throw new Error('Failed to fetch reservation history.');
+            const history = await response.json();
+            if (history.length === 0) {
+                historyContainer.innerHTML = '<p class="text-muted">No reservation history.</p>';
+            } else {
+                history.forEach(res => {
+                    const resElement = document.createElement('div');
+                    resElement.className = 'list-group-item';
+                    resElement.innerHTML = `
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <div>
+                                <strong>Lot:</strong> ${res.lot} <br>
+                                <strong>Spot ID:</strong> ${res.spot_id} <br>
+                                <strong>Start:</strong> ${res.start} <br>
+                                <strong>End:</strong> ${res.end ? res.end : 'Active'} <br>
+                                <strong>Cost:</strong> ${res.cost !== null ? '₹' + res.cost : '-'}
+                            </div>
+                            <span class="badge ${res.status === 'Active' ? 'bg-success' : 'bg-secondary'}">${res.status}</span>
+                        </div>
+                    `;
+                    historyContainer.appendChild(resElement);
+                });
+            }
+        } catch (error) {
+            historyContainer.innerHTML = '<p class="text-danger">Error loading reservation history.</p>';
+        }
+    }
+
+    lotsContainer.addEventListener('click', async function(e) {
+        if (e.target.classList.contains('reserve-btn')) {
+            const lotId = e.target.getAttribute('data-lot-id');
+            e.target.disabled = true;
+            try {
+                const response = await fetch(`/api/user/reserve/${lotId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.msg || 'Failed to reserve spot');
+                } else {
+                    alert('Spot reserved successfully!');
+                }
+                await loadLots();
+                await loadActiveReservations();
+                await loadHistory();
+            } catch (error) {
+                alert('Error reserving spot');
+            } finally {
+                e.target.disabled = false;
+            }
+        }
+    });
+
+    activeReservationsContainer.addEventListener('click', async function(e) {
+        if (e.target.classList.contains('release-btn')) {
+            const resId = e.target.getAttribute('data-res-id');
+            if (!confirm('Are you sure you want to release this parking spot?')) return;
+            e.target.disabled = true;
+            try {
+                const response = await fetch(`/api/user/release/${resId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.msg || 'Failed to release spot');
+                } else {
+                    alert(`Spot released! Cost: ₹${data.cost}`);
+                }
+                await loadLots();
+                await loadActiveReservations();
+                await loadHistory();
+            } catch (error) {
+                alert('Error releasing spot');
+            } finally {
+                e.target.disabled = false;
+            }
+        }
+    });
+
+    await loadLots();
+    await loadActiveReservations();
+    await loadHistory();
 
     document.getElementById('logout-btn').addEventListener('click', () => {
         localStorage.removeItem('access_token');

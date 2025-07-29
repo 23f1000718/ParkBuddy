@@ -15,12 +15,29 @@ class Config:
     CACHE_REDIS_URL = REDIS_URL  # Flask-Caching
     
     # Celery Configuration
-    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-    CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
-    
-    # Email Configuration (for monthly reports)
-    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
-    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', True)
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME', 'your-email@gmail.com')
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', 'your-app-password')  
+    # Flask-Mail config for Mailhog
+    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'localhost')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', 1025))
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'false').lower() in ['true', '1', 't']
+    MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL', 'false').lower() in ['true', '1', 't']
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME', None)
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', None)
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'parkbuddy@localhost')
+
+    # Celery Configuration (modern, lowercase)
+    CELERY_CONFIG = {
+        'broker_url': os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0'),
+        'result_backend': os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0'),
+        'imports': ('backend.tasks',),
+        'beat_schedule': {
+            'daily-reminders': {
+                'task': 'backend.tasks.send_daily_reminders',
+                'schedule': 60.0,  # Every 1 minute for demo
+            },
+            'monthly-reports': {
+                'task': 'backend.tasks.send_monthly_reports',
+                'schedule': 120.0,  # Every 2 minutes for demo
+            },
+        },
+        'timezone': 'UTC',
+    }

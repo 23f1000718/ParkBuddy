@@ -47,3 +47,6 @@ celerybeat.pid
 Thumbs.db
 milestone doc.pdf
 proj statement.txt
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+celerybeat-schedule.dir

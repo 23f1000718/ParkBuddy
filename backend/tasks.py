@@ -1,6 +1,6 @@
 from celery import current_task
-from .extensions import db
-from .models import User, Reservation, ParkingLot
+from .extensions import db, mail
+from .models import User, Admin, Reservation, ParkingLot, ParkingSpot
 from datetime import datetime, timedelta
 import csv
 import io
@@ -8,46 +8,65 @@ from flask_mail import Message
 from flask import current_app
 import requests
 
-# Import celery and mail from app context
-from .app import celery, mail
+# Import celery from app context
+from .app import celery
 
-@celery.task
+@celery.task(name='backend.tasks.send_daily_reminders')
 def send_daily_reminders():
-    """Send daily reminders to users who haven't used the parking system"""
+    """Send daily reminders to users: reservation reminder or lot suggestion"""
     try:
-        # Get users who haven't made any reservations in the last 7 days
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        inactive_users = User.query.filter(
-            ~User.reservations.any(Reservation.parking_timestamp >= week_ago)
-        ).all()
-        
-        for user in inactive_users:
-            # Send reminder via email (you can also implement Google Chat webhook)
-            send_reminder_email(user.email, user.full_name)
-            
-        return f"Sent reminders to {len(inactive_users)} users"
+        users = User.query.all()
+        for user in users:
+            active_res = Reservation.query.filter_by(user_id=user.id, leaving_timestamp=None).first()
+            if active_res:
+                # Remind about reservation
+                send_active_reservation_reminder(user.email, user.full_name, active_res)
+            else:
+                # Suggest a lot to book (pick lot with most available spots)
+                lots = ParkingLot.query.all()
+                best_lot = None
+                max_available = -1
+                for lot in lots:
+                    available = ParkingSpot.query.filter_by(lot_id=lot.id, status='A').count()
+                    if available > max_available:
+                        max_available = available
+                        best_lot = lot
+                if best_lot:
+                    send_lot_suggestion_email(user.email, user.full_name, best_lot.prime_location_name)
+        return f"Sent daily reminders to {len(users)} users"
     except Exception as e:
         return f"Error sending reminders: {str(e)}"
 
-@celery.task
+@celery.task(name='backend.tasks.send_monthly_reports')
 def send_monthly_reports():
-    """Send monthly activity reports to all users"""
+    """Send monthly activity summary to all admins"""
     try:
-        users = User.query.all()
+        admins = Admin.query.all()
         current_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
-        for user in users:
-            # Get user's monthly activity
-            monthly_reservations = Reservation.query.filter(
-                Reservation.user_id == user.id,
+        lots = ParkingLot.query.all()
+        # Gather stats per lot
+        lot_stats = []
+        for lot in lots:
+            reservations = Reservation.query.join(ParkingSpot).filter(
+                ParkingSpot.lot_id == lot.id,
                 Reservation.parking_timestamp >= current_month
             ).all()
-            
-            if monthly_reservations:
-                report_html = generate_monthly_report(user, monthly_reservations)
-                send_monthly_report_email(user.email, user.full_name, report_html)
-                
-        return f"Sent monthly reports to {len(users)} users"
+            total_res = len(reservations)
+            total_rev = sum(r.parking_cost or 0 for r in reservations)
+            occupied = ParkingSpot.query.filter_by(lot_id=lot.id, status='O').count()
+            available = ParkingSpot.query.filter_by(lot_id=lot.id, status='A').count()
+            lot_stats.append({
+                'name': lot.prime_location_name,
+                'total_reservations': total_res,
+                'total_revenue': total_rev,
+                'occupied_spots': occupied,
+                'available_spots': available
+            })
+        # Generate HTML report
+        report_html = generate_admin_monthly_report(lot_stats, current_month)
+        for admin in admins:
+            send_monthly_report_email(admin.username, admin.username, report_html)
+        return f"Sent monthly report to {len(admins)} admin(s)"
     except Exception as e:
         return f"Error sending monthly reports: {str(e)}"
 
@@ -91,32 +110,54 @@ def export_user_csv(user_id):
     except Exception as e:
         return f"Error exporting CSV: {str(e)}"
 
-def send_reminder_email(email, name):
-    """Send reminder email to user"""
+def send_active_reservation_reminder(email, name, reservation):
+    """Send reminder email to user with active reservation details"""
     try:
         msg = Message(
-            "ParkBuddy - Daily Reminder",
+            "ParkBuddy - Reservation Reminder",
             sender=current_app.config['MAIL_USERNAME'],
             recipients=[email]
         )
         msg.body = f"""
         Hi {name},
         
-        We noticed you haven't used ParkBuddy in a while. 
-        Don't forget to book your parking spot when needed!
+        This is a reminder that you have an active parking reservation:
+        Lot: {reservation.spot.lot.prime_location_name}
+        Spot ID: {reservation.spot_id}
+        Parked At: {reservation.parking_timestamp.strftime('%Y-%m-%d %H:%M')}
         
-        Best regards,
+        Have a great day!
         ParkBuddy Team
         """
         mail.send(msg)
     except Exception as e:
-        print(f"Error sending reminder email: {e}")
+        print(f"Error sending reservation reminder email: {e}")
 
-def send_monthly_report_email(email, name, report_html):
-    """Send monthly report email to user"""
+def send_lot_suggestion_email(email, name, lot_name):
+    """Suggest a lot to book to user"""
     try:
         msg = Message(
-            "ParkBuddy - Monthly Activity Report",
+            "ParkBuddy - Book a Spot!",
+            sender=current_app.config['MAIL_USERNAME'],
+            recipients=[email]
+        )
+        msg.body = f"""
+        Hi {name},
+        
+        Looking for parking? We recommend booking a spot at our {lot_name} lot, which currently has the most availability!
+        
+        See you soon,
+        ParkBuddy Team
+        """
+        mail.send(msg)
+    except Exception as e:
+        print(f"Error sending lot suggestion email: {e}")
+
+def send_monthly_report_email(email, name, report_html):
+    """Send monthly report email to admin"""
+    try:
+        msg = Message(
+            "ParkBuddy - Monthly Lot Activity Summary",
             sender=current_app.config['MAIL_USERNAME'],
             recipients=[email]
         )
@@ -146,36 +187,22 @@ def send_csv_email(email, name, csv_content):
     except Exception as e:
         print(f"Error sending CSV email: {e}")
 
-def generate_monthly_report(user, reservations):
-    """Generate HTML monthly report"""
-    total_cost = sum(r.parking_cost or 0 for r in reservations)
-    total_duration = sum(
-        (r.leaving_timestamp - r.parking_timestamp).total_seconds() / 3600 
-        for r in reservations if r.leaving_timestamp
-    )
-    
-    # Most used parking lot
-    lot_usage = {}
-    for res in reservations:
-        lot_name = res.spot.lot.prime_location_name
-        lot_usage[lot_name] = lot_usage.get(lot_name, 0) + 1
-    
-    most_used_lot = max(lot_usage.items(), key=lambda x: x[1])[0] if lot_usage else "None"
-    
+def generate_admin_monthly_report(lot_stats, current_month):
+    """Generate HTML summary report for all lots for admins"""
     html = f"""
     <html>
     <body>
-        <h2>ParkBuddy Monthly Report</h2>
-        <p>Hi {user.full_name},</p>
-        <p>Here's your parking activity for this month:</p>
-        <ul>
-            <li>Total Reservations: {len(reservations)}</li>
-            <li>Total Cost: ₹{total_cost:.2f}</li>
-            <li>Total Duration: {total_duration:.2f} hours</li>
-            <li>Most Used Parking Lot: {most_used_lot}</li>
-        </ul>
-        <p>Thank you for using ParkBuddy!</p>
+        <h2>ParkBuddy Monthly Lot Activity Summary</h2>
+        <p>Report for: {current_month.strftime('%B %Y')}</p>
+        <table border='1' cellpadding='5' cellspacing='0'>
+            <tr><th>Lot Name</th><th>Total Reservations</th><th>Total Revenue</th><th>Occupied Spots</th><th>Available Spots</th></tr>
+    """
+    for lot in lot_stats:
+        html += f"<tr><td>{lot['name']}</td><td>{lot['total_reservations']}</td><td>₹{lot['total_revenue']:.2f}</td><td>{lot['occupied_spots']}</td><td>{lot['available_spots']}</td></tr>"
+    html += """
+        </table>
+        <p>Thank you for managing ParkBuddy!</p>
     </body>
     </html>
     """
-    return html 
+    return html

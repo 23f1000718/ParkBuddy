@@ -3,12 +3,12 @@ from flask_jwt_extended import get_jwt_identity
 from ..models import ParkingLot, ParkingSpot, Reservation, User
 from ..extensions import db, cache
 from .decorators import role_required
-from datetime import datetime
+from datetime import datetime, timedelta
+from sqlalchemy import func
 
 user_bp = Blueprint('user', __name__)
 
 @user_bp.route('/api/user/lots', methods=['GET'])
-@cache.cached(timeout=60)  # Cache for 1 minute
 @role_required('user')
 def get_lots():
     lots = ParkingLot.query.all()
@@ -108,39 +108,21 @@ def trigger_csv_export():
 
 @user_bp.route('/api/user/stats', methods=['GET'])
 @role_required('user')
-@cache.cached(timeout=300)  # Cache for 5 minutes
 def user_stats():
     user_id = int(get_jwt_identity())
-    
-    # Get user statistics
-    total_reservations = Reservation.query.filter_by(user_id=user_id).count()
-    completed_reservations = Reservation.query.filter_by(
-        user_id=user_id
-    ).filter(Reservation.leaving_timestamp.isnot(None)).count()
-    
-    total_cost = db.session.query(db.func.sum(Reservation.parking_cost)).filter_by(
-        user_id=user_id
-    ).scalar() or 0
-    
-    # Most used parking lot with explicit joins
-    lot_usage = db.session.query(
-        ParkingLot.prime_location_name,
-        db.func.count(Reservation.id)
-    ).select_from(Reservation).join(
-        ParkingSpot, Reservation.spot_id == ParkingSpot.id
-    ).join(
-        ParkingLot, ParkingSpot.lot_id == ParkingLot.id
-    ).filter(
-        Reservation.user_id == user_id
-    ).group_by(
-        ParkingLot.prime_location_name
-    ).order_by(
-        db.func.count(Reservation.id).desc()
-    ).first()
-    
-    return jsonify({
-        "total_reservations": total_reservations,
-        "completed_reservations": completed_reservations,
-        "total_cost": float(total_cost),
-        "most_used_lot": lot_usage[0] if lot_usage else "None"
-    })
+    try:
+        # General Stats
+        total_reservations = Reservation.query.filter_by(user_id=user_id).count()
+        completed_reservations = Reservation.query.filter_by(user_id=user_id).filter(Reservation.leaving_timestamp.isnot(None)).count()
+        total_cost = db.session.query(func.sum(Reservation.parking_cost)).filter_by(user_id=user_id).scalar() or 0
+
+        return jsonify({
+            "total_reservations": total_reservations,
+            "completed_reservations": completed_reservations,
+            "total_cost": float(total_cost)
+        })
+    except Exception as e:
+        import traceback
+        print("Error in user_stats:", e)
+        print(traceback.format_exc())
+        return jsonify(msg="Error loading statistics", error=str(e)), 500

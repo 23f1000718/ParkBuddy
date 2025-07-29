@@ -4,7 +4,6 @@
   <script src="https://unpkg.com/vue@3"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div id="userApp" class="container-fluid p-4">
@@ -68,6 +67,7 @@
           </div>
         </div>
       </div>
+
 
       <!-- Available Parking Lots -->
       <div class="col-md-6 mb-4">
@@ -177,28 +177,6 @@
         </div>
       </div>
 
-      <!-- Charts -->
-      <div class="col-md-6 mb-4">
-        <div class="card">
-          <div class="card-header">
-            <h5><i class="bi bi-graph-up"></i> Monthly Usage</h5>
-          </div>
-          <div class="card-body">
-            <canvas id="usageChart" width="400" height="200"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-md-6 mb-4">
-        <div class="card">
-          <div class="card-header">
-            <h5><i class="bi bi-pie-chart"></i> Cost Breakdown</h5>
-          </div>
-          <div class="card-body">
-            <canvas id="costChart" width="400" height="200"></canvas>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Alert Messages -->
@@ -221,12 +199,10 @@
           stats: {
             total_reservations: 0,
             completed_reservations: 0,
-            total_cost: 0,
-            most_used_lot: 'None'
+            total_cost: 0
           },
           alert: { show: false, type: 'info', message: '' },
-          usageChart: null,
-          costChart: null
+          _activeLoaded: false
         };
       },
       mounted() {
@@ -260,16 +236,19 @@
           .then(res => res.json())
           .then(data => {
             this.stats = data;
-            this.createCharts();
           })
-          .catch(error => this.showAlert('danger', 'Error loading statistics'));
+          .catch(error => console.error('Error loading stats:', error));
         },
         loadActiveReservations() {
           fetch('/api/user/active-reservations', {
             headers: { Authorization: `Bearer ${this.getToken()}` }
           })
           .then(res => res.json())
-          .then(data => this.activeReservations = data)
+          .then(data => {
+            this.activeReservations = data;
+            this._activeLoaded = true;
+            this.updateChartsIfReady();
+          })
           .catch(error => this.showAlert('danger', 'Error loading active reservations'));
         },
         loadReservations() {
@@ -292,6 +271,7 @@
                 this.loadData();
                 this.loadActiveReservations();
                 this.loadStats();
+                
               });
             } else {
               return res.json().then(data => {
@@ -342,92 +322,7 @@
           const diffHours = (endDate - startDate) / (1000 * 60 * 60);
           return `${diffHours.toFixed(1)}h`;
         },
-        createCharts() {
-          // Destroy existing charts if they exist
-          if (this.usageChart) {
-            this.usageChart.destroy();
-          }
-          if (this.costChart) {
-            this.costChart.destroy();
-          }
 
-          // Usage Chart - Monthly reservations
-          const usageCtx = document.getElementById('usageChart');
-          if (usageCtx) {
-            this.usageChart = new Chart(usageCtx, {
-              type: 'bar',
-              data: {
-                labels: ['Total', 'Completed', 'Active'],
-                datasets: [{
-                  label: 'Reservations',
-                  data: [this.stats.total_reservations, this.stats.completed_reservations, this.activeReservations.length],
-                  backgroundColor: [
-                    'rgb(54, 162, 235)',
-                    'rgb(75, 192, 192)',
-                    'rgb(255, 205, 86)'
-                  ]
-                }]
-              },
-              options: {
-                responsive: true,
-                scales: {
-                  y: {
-                    beginAtZero: true
-                  }
-                }
-              }
-            });
-          }
-
-          // Cost Chart - Show actual spending breakdown
-          const costCtx = document.getElementById('costChart');
-          if (costCtx) {
-            // Calculate cost for active reservations (estimated based on current duration)
-            let activeCost = 0;
-            this.activeReservations.forEach(res => {
-              const duration = parseFloat(res.parking_duration) || 0;
-              const rate = this.lots.find(lot => lot.prime_location_name === res.lot)?.price_per_hour || 0;
-              // Apply minimum 1-hour billing for estimation
-              const billableHours = Math.max(1.0, duration);
-              activeCost += billableHours * rate;
-            });
-            
-            const completedCost = this.stats.total_cost || 0;
-            const totalCost = completedCost + activeCost;
-            
-            this.costChart = new Chart(costCtx, {
-              type: 'doughnut',
-              data: {
-                labels: [`Completed (₹${completedCost.toFixed(2)})`, `Active (₹${activeCost.toFixed(2)})`],
-                datasets: [{
-                  data: [completedCost || 0.1, activeCost || 0.1], // Avoid zero values for better display
-                  backgroundColor: [
-                    'rgb(54, 162, 235)',
-                    'rgb(255, 205, 86)'
-                  ]
-                }]
-              },
-              options: {
-                responsive: true,
-                plugins: {
-                  legend: {
-                    position: 'bottom'
-                  },
-                  tooltip: {
-                    callbacks: {
-                      label: function(context) {
-                        const value = context.parsed;
-                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                        const percentage = ((value / total) * 100).toFixed(1);
-                        return `${context.label}: ${percentage}%`;
-                      }
-                    }
-                  }
-                }
-              }
-            });
-          }
-        }
       }
     }).mount('#userApp');
   </script>

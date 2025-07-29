@@ -1,7 +1,6 @@
 from flask import Flask, send_from_directory
-from .extensions import db, jwt, cache, make_celery
+from .extensions import db, jwt, cache, mail, make_celery
 from .config import Config
-from flask_mail import Mail
 import os
 
 def create_app():
@@ -13,7 +12,6 @@ def create_app():
     cache.init_app(app)
     
     # Initialize mail
-    mail = Mail()
     mail.init_app(app)
     
     # Register blueprints

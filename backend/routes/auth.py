@@ -42,6 +42,8 @@ def login():
     user = User.query.filter_by(email=email).first()
     if not user or not user.check_password(password):
         return jsonify(msg="bad credentials"), 401
+    if not user.is_active:
+        return jsonify(msg="Your account has been blocked by the admin. Please contact support."), 403
 
     additional_claims = {"role": "user"}
     access_token = create_access_token(identity=str(user.id), additional_claims=additional_claims)

@@ -4,12 +4,13 @@ from ..models import User, ParkingLot, ParkingSpot, Reservation, Admin
 from ..extensions import db, cache
 from .decorators import role_required
 from datetime import datetime, timedelta
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 admin_bp = Blueprint('admin', __name__)
 
 @admin_bp.route('/api/lots', methods=['GET'])
 @role_required('admin')
+@cache.cached(timeout=30, key_prefix="admin_lots")
 def get_all_lots():
     lots = ParkingLot.query.all()
     return jsonify([
@@ -109,6 +110,7 @@ def create_lot():
 
 @admin_bp.route('/api/admin/users', methods=['GET'])
 @role_required('admin')
+# @cache.cached(timeout=30, key_prefix="admin_users")
 def list_users():
     users = User.query.all()
     return jsonify([
@@ -118,6 +120,7 @@ def list_users():
 
 @admin_bp.route('/api/admin/user-details/<int:user_id>', methods=['GET'])
 @role_required('admin')
+@cache.cached(timeout=30, key_prefix=lambda: f"admin_user_details_{request.view_args['user_id']}")
 def get_user_details(user_id):
     user = User.query.get_or_404(user_id)
     
@@ -185,57 +188,84 @@ def block_user(user_id):
     action = "unblocked" if user.is_active else "blocked"
     return jsonify(msg=f"User {action} successfully"), 200
 
+@admin_bp.route('/api/admin/stats', methods=['GET'])
 @admin_bp.route('/api/admin/dashboard-stats', methods=['GET'])
 @role_required('admin')
-@cache.cached(timeout=300)  # Cache for 5 minutes
+# @cache.cached(timeout=60)
 def dashboard_stats():
     try:
-        # Total statistics
-        total_lots = db.session.query(func.count(ParkingLot.id)).scalar()
-        total_spots = db.session.query(func.count(ParkingSpot.id)).scalar()
-        occupied_spots = db.session.query(func.count(ParkingSpot.id)).filter(ParkingSpot.status == 'O').scalar()
-        available_spots = total_spots - occupied_spots
-        total_users = db.session.query(func.count(User.id)).scalar()
-        
-        # Recent activity (last 24 hours)
-        yesterday = datetime.utcnow() - timedelta(days=1)
-        recent_reservations = db.session.query(func.count(Reservation.id)).filter(
-            Reservation.parking_timestamp >= yesterday
-        ).scalar()
-        
-        # Revenue today
+        # Quick Stats
+        total_lots = ParkingLot.query.count()
+        total_spots = ParkingSpot.query.count()
+        total_users = User.query.count()
+
+        occupied_spots = ParkingSpot.query.filter_by(status='O').count()
+        available_spots = ParkingSpot.query.filter_by(status='A').count()
+
+        # Revenue Today: sum of parking_cost for reservations completed today
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         today_revenue = db.session.query(func.sum(Reservation.parking_cost)).filter(
             Reservation.leaving_timestamp >= today_start
         ).scalar() or 0
-        
-        # Most popular parking lot
+
+        # Most popular lot (by total reservations)
         popular_lot_query = db.session.query(
             ParkingLot.prime_location_name,
             func.count(Reservation.id).label('reservation_count')
-        ).select_from(Reservation).join(
-            ParkingSpot, Reservation.spot_id == ParkingSpot.id
-        ).join(
-            ParkingLot, ParkingSpot.lot_id == ParkingLot.id
-        ).group_by(ParkingLot.prime_location_name).order_by(func.count(Reservation.id).desc())
-
+        ).join(ParkingSpot, ParkingLot.id == ParkingSpot.lot_id)\
+         .join(Reservation, ParkingSpot.id == Reservation.spot_id)\
+         .group_by(ParkingLot.id)\
+         .order_by(func.count(Reservation.id).desc())
         popular_lot = popular_lot_query.first()
-        
+
+        # Spot distribution by lot
+        lots = ParkingLot.query.all()
+        spot_distribution = []
+        for lot in lots:
+            total = ParkingSpot.query.filter_by(lot_id=lot.id).count()
+            occupied = ParkingSpot.query.filter_by(lot_id=lot.id, status='O').count()
+            available = total - occupied
+            spot_distribution.append({
+                "name": lot.prime_location_name,
+                "total": total,
+                "occupied": occupied,
+                "available": available
+            })
+
+        # Recent reservations (last 5)
+        recent_reservations_query = Reservation.query.order_by(Reservation.parking_timestamp.desc()).limit(5)
+        recent_reservations = [
+            {
+                "id": res.id,
+                "user": res.user.full_name,
+                "lot": res.spot.lot.prime_location_name,
+                "spot_id": res.spot_id,
+                "parked_at": res.parking_timestamp.strftime("%Y-%m-%d %H:%M"),
+                "cost": res.parking_cost or 0
+            }
+            for res in recent_reservations_query
+        ]
+
         return jsonify({
             "total_lots": total_lots,
             "total_spots": total_spots,
             "occupied_spots": occupied_spots,
             "available_spots": available_spots,
             "total_users": total_users,
-            "recent_reservations": recent_reservations,
             "today_revenue": float(today_revenue),
-            "most_popular_lot": popular_lot[0] if popular_lot else "None"
+            "most_popular_lot": popular_lot[0] if popular_lot else "None",
+            "spot_distribution": spot_distribution,
+            "recent_reservations": recent_reservations
         })
+
     except Exception as e:
-        return jsonify(msg=f"Error in dashboard_stats: {str(e)}"), 500
+        db.session.rollback()
+        print(f"Error in dashboard_stats: {str(e)}")
+        return jsonify(msg=f"Error loading dashboard statistics: {str(e)}"), 500
 
 @admin_bp.route('/api/admin/lot-details/<int:lot_id>', methods=['GET'])
 @role_required('admin')
+@cache.cached(timeout=30, key_prefix=lambda: f"admin_lot_details_{request.view_args['lot_id']}")
 def lot_details(lot_id):
     lot = ParkingLot.query.get_or_404(lot_id)
     spots = ParkingSpot.query.filter_by(lot_id=lot_id).all()

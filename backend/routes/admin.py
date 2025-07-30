@@ -120,7 +120,7 @@ def list_users():
 
 @admin_bp.route('/api/admin/user-details/<int:user_id>', methods=['GET'])
 @role_required('admin')
-@cache.cached(timeout=60, key_prefix=lambda: f"admin_user_details_{request.view_args['user_id']}")
+@cache.cached(timeout=200, key_prefix=lambda: f"admin_user_details_{request.view_args['user_id']}")
 def get_user_details(user_id):
     user = User.query.get_or_404(user_id)
     
@@ -264,7 +264,7 @@ def dashboard_stats():
 
 @admin_bp.route('/api/admin/lot-details/<int:lot_id>', methods=['GET'])
 @role_required('admin')
-@cache.cached(timeout=60, key_prefix=lambda: f"admin_lot_details_{request.view_args['lot_id']}")
+@cache.cached(timeout=200, key_prefix=lambda: f"admin_lot_details_{request.view_args['lot_id']}")
 def lot_details(lot_id):
     lot = ParkingLot.query.get_or_404(lot_id)
     spots = ParkingSpot.query.filter_by(lot_id=lot_id).all()

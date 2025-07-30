@@ -45,9 +45,7 @@ celerybeat.pid
 # OS
 .DS_Store
 Thumbs.db
-milestone doc.pdf
 
 celerybeat-schedule.bak
 celerybeat-schedule.dat
 celerybeat-schedule.dir
-proj statement.txt

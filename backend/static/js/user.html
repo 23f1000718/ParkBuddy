@@ -4,6 +4,8 @@
   <script src="https://unpkg.com/vue@3"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>User Dashboard - ParkBuddy</title>
 </head>
 <body>
   <div id="userApp" class="container-fluid p-4">
@@ -67,7 +69,6 @@
           </div>
         </div>
       </div>
-
 
       <!-- Available Parking Lots -->
       <div class="col-md-6 mb-4">
@@ -144,34 +145,55 @@
                     <th>Lot</th>
                     <th>Start Time</th>
                     <th>End Time</th>
-                    <th>Duration</th>
                     <th>Cost</th>
                     <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="res in reservations" :key="res.id">
                     <td>{{ res.lot }}</td>
                     <td>{{ res.start }}</td>
-                    <td>{{ res.end || 'Active' }}</td>
+                    <td>{{ res.end || '-' }}</td>
+                    <td>{{ res.cost !== null ? '₹' + res.cost : '-' }}</td>
                     <td>
-                      <span v-if="res.end" class="badge bg-info">
-                        {{ calculateDuration(res.start, res.end) }}
-                      </span>
-                      <span v-else class="badge bg-warning">Active</span>
-                    </td>
-                    <td>
-                      <span v-if="res.cost" class="text-success">₹{{ res.cost }}</span>
-                      <span v-else class="text-muted">-</span>
-                    </td>
-                    <td>
-                      <span :class="res.status === 'Active' ? 'badge bg-warning' : 'badge bg-success'">
+                      <span :class="res.status === 'Active' ? 'badge bg-warning text-dark' : 'badge bg-success'">
                         {{ res.status }}
                       </span>
+                    </td>
+                    <td>
+                      <button v-if="res.status === 'Active'" @click="release(res.id)" class="btn btn-danger btn-sm">
+                        <i class="bi bi-stop-circle"></i> Release
+                      </button>
                     </td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="row">
+        <div class="col-md-6 mb-4">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="bi bi-pie-chart"></i> Reservation Status</h5>
+            </div>
+            <div class="card-body">
+              <canvas id="reservationChart" width="300" height="200"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="bi bi-bar-chart"></i> Monthly Spending</h5>
+            </div>
+            <div class="card-body">
+              <canvas id="spendingChart" width="300" height="200"></canvas>
             </div>
           </div>
         </div>
@@ -249,16 +271,21 @@
             this._activeLoaded = true;
             this.updateChartsIfReady();
           })
-          .catch(error => this.showAlert('danger', 'Error loading active reservations'));
+          // No error popup for active reservations
         },
         loadReservations() {
-          fetch('/api/user/reservations', {
-            headers: { Authorization: `Bearer ${this.getToken()}` }
-          })
-          .then(res => res.json())
-          .then(data => this.reservations = data)
-          .catch(error => this.showAlert('danger', 'Error loading reservations'));
-        },
+  fetch('/api/user/reservations', {
+    headers: { Authorization: `Bearer ${this.getToken()}` }
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Network response was not ok');
+    return res.json();
+  })
+  .then(data => {
+    this.reservations = Array.isArray(data) ? data : [];
+  })
+  // No error popup for reservations
+},
         reserve(lotId) {
           fetch(`/api/user/reserve/${lotId}`, {
             method: 'POST',
@@ -323,6 +350,78 @@
           return `${diffHours.toFixed(1)}h`;
         },
 
+        updateCharts() {
+          // Reservation Status Chart
+          const ctx1 = document.getElementById('reservationChart');
+          if (ctx1) {
+            if (this._reservationChart) this._reservationChart.destroy();
+            this._reservationChart = new Chart(ctx1, {
+              type: 'doughnut',
+              data: {
+                labels: ['Completed', 'Active'],
+                datasets: [{
+                  data: [this.stats.completed_reservations || 0, this.stats.active_reservations || 0],
+                  backgroundColor: ['#198754', '#0dcaf0']
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } }
+              }
+            });
+          }
+
+          // Monthly Spending Chart
+          const ctx2 = document.getElementById('spendingChart');
+          if (ctx2) {
+            if (this._spendingChart) this._spendingChart.destroy();
+            const labels = (this.stats.monthly_spending || []).map(m => m.month);
+            const data = (this.stats.monthly_spending || []).map(m => m.amount);
+            this._spendingChart = new Chart(ctx2, {
+              type: 'bar',
+              data: {
+                labels: labels,
+                datasets: [{
+                  label: '₹ Spent',
+                  data: data,
+                  backgroundColor: '#0d6efd'
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                  y: { beginAtZero: true }
+                }
+              }
+            });
+          }
+        }
+      },
+      watch: {
+        stats: {
+          handler() {
+            this.updateCharts();
+          },
+          deep: true
+        }
+      },
+      mounted() {
+        this.loadStats();
+        this.loadData();
+        this.loadActiveReservations();
+        this.loadReservations();
+      },
+      data() {
+        return {
+          lots: [],
+          stats: {},
+          activeReservations: [],
+          reservations: [],
+          alert: { show: false, type: '', message: '' },
+          _reservationChart: null,
+          _spendingChart: null
+        };
       }
     }).mount('#userApp');
   </script>

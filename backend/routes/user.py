@@ -114,12 +114,54 @@ def user_stats():
         # General Stats
         total_reservations = Reservation.query.filter_by(user_id=user_id).count()
         completed_reservations = Reservation.query.filter_by(user_id=user_id).filter(Reservation.leaving_timestamp.isnot(None)).count()
+        active_reservations = total_reservations - completed_reservations
         total_cost = db.session.query(func.sum(Reservation.parking_cost)).filter_by(user_id=user_id).scalar() or 0
+
+        # Monthly spending data for the last 6 months
+        from datetime import datetime, timedelta
+        from sqlalchemy import extract
+        
+        monthly_spending = []
+        current_date = datetime.now()
+        
+        for i in range(6):
+            # Calculate the month and year for each of the last 6 months
+            month_date = current_date - timedelta(days=30 * i)
+            month_cost = db.session.query(func.sum(Reservation.parking_cost)).filter(
+                Reservation.user_id == user_id,
+                extract('month', Reservation.leaving_timestamp) == month_date.month,
+                extract('year', Reservation.leaving_timestamp) == month_date.year,
+                Reservation.leaving_timestamp.isnot(None)
+            ).scalar() or 0
+            
+            monthly_spending.insert(0, {
+                "month": month_date.strftime("%b %Y"),
+                "amount": float(month_cost)
+            })
+
+        # Most used parking lots
+        lot_usage = db.session.query(
+            ParkingLot.prime_location_name,
+            func.count(Reservation.id).label('usage_count')
+        ).join(ParkingSpot, ParkingLot.id == ParkingSpot.lot_id)\
+         .join(Reservation, ParkingSpot.id == Reservation.spot_id)\
+         .filter(Reservation.user_id == user_id)\
+         .group_by(ParkingLot.id)\
+         .order_by(func.count(Reservation.id).desc())\
+         .limit(5).all()
+
+        lot_usage_data = [
+            {"name": lot[0], "count": lot[1]} 
+            for lot in lot_usage
+        ]
 
         return jsonify({
             "total_reservations": total_reservations,
             "completed_reservations": completed_reservations,
-            "total_cost": float(total_cost)
+            "active_reservations": active_reservations,
+            "total_cost": float(total_cost),
+            "monthly_spending": monthly_spending,
+            "lot_usage": lot_usage_data
         })
     except Exception as e:
         import traceback

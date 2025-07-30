@@ -10,7 +10,7 @@ admin_bp = Blueprint('admin', __name__)
 
 @admin_bp.route('/api/lots', methods=['GET'])
 @role_required('admin')
-@cache.cached(timeout=30, key_prefix="admin_lots")
+@cache.cached(timeout=200, key_prefix="admin_lots")
 def get_all_lots():
     lots = ParkingLot.query.all()
     return jsonify([
@@ -120,7 +120,7 @@ def list_users():
 
 @admin_bp.route('/api/admin/user-details/<int:user_id>', methods=['GET'])
 @role_required('admin')
-@cache.cached(timeout=30, key_prefix=lambda: f"admin_user_details_{request.view_args['user_id']}")
+@cache.cached(timeout=200, key_prefix=lambda: f"admin_user_details_{request.view_args['user_id']}")
 def get_user_details(user_id):
     user = User.query.get_or_404(user_id)
     
@@ -202,10 +202,9 @@ def dashboard_stats():
         occupied_spots = ParkingSpot.query.filter_by(status='O').count()
         available_spots = ParkingSpot.query.filter_by(status='A').count()
 
-        # Revenue Today: sum of parking_cost for reservations completed today
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_revenue = db.session.query(func.sum(Reservation.parking_cost)).filter(
-            Reservation.leaving_timestamp >= today_start
+        # Total Revenue: sum of parking_cost for all completed reservations
+        total_revenue = db.session.query(func.sum(Reservation.parking_cost)).filter(
+            Reservation.leaving_timestamp.isnot(None)
         ).scalar() or 0
 
         # Most popular lot (by total reservations)
@@ -252,7 +251,7 @@ def dashboard_stats():
             "occupied_spots": occupied_spots,
             "available_spots": available_spots,
             "total_users": total_users,
-            "today_revenue": float(today_revenue),
+            "total_revenue": float(total_revenue),
             "most_popular_lot": popular_lot[0] if popular_lot else "None",
             "spot_distribution": spot_distribution,
             "recent_reservations": recent_reservations
@@ -265,7 +264,7 @@ def dashboard_stats():
 
 @admin_bp.route('/api/admin/lot-details/<int:lot_id>', methods=['GET'])
 @role_required('admin')
-@cache.cached(timeout=30, key_prefix=lambda: f"admin_lot_details_{request.view_args['lot_id']}")
+@cache.cached(timeout=200, key_prefix=lambda: f"admin_lot_details_{request.view_args['lot_id']}")
 def lot_details(lot_id):
     lot = ParkingLot.query.get_or_404(lot_id)
     spots = ParkingSpot.query.filter_by(lot_id=lot_id).all()

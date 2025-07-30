@@ -45,7 +45,7 @@ A comprehensive multi-user vehicle parking management application built with Fla
 - **Redis**: Caching and message broker
 - **Celery**: Background task processing
 - **JWT**: Token-based authentication
-- **Flask-Mail**: Email functionality
+- **Flask-Mail**: Email functionality (implemented via mailhog)
 
 ### Frontend
 - **Vue.js 3**: Progressive JavaScript framework
@@ -59,6 +59,8 @@ A comprehensive multi-user vehicle parking management application built with Fla
 - Python 3.8+
 - Redis Server
 - pip (Python package manager)
+- celery
+- mailhog
 
 ### Step 1: Clone the Repository
 ```bash
@@ -115,14 +117,18 @@ REDIS_URL=redis://localhost:6379/0
 python run.py
 ```
 
-#### Start Celery Worker (in a separate terminal)
+#### Start Celery Worker (in a separate terminal in root folder)
 ```bash
-celery -A celery_worker.celery worker --loglevel=info
+celery -A backend.app.celery worker --loglevel=info -P solo
 ```
 
-#### Start Celery Beat (for scheduled tasks)
+#### Start Celery Beat (for scheduled tasks in root folder)
 ```bash
-celery -A celery_worker.celery beat --loglevel=info
+celery -A backend.app.celery beat --loglevel=info
+```
+#### download mailhog from its repo and start it in a different terminal
+```bash
+mailhog
 ```
 
 ## Usage
@@ -130,10 +136,11 @@ celery -A celery_worker.celery beat --loglevel=info
 ### Accessing the Application
 1. Open your browser and navigate to `http://localhost:5000`
 2. You'll see the ParkBuddy landing page with login/register options
+3. To access mailhog for backend jobs go to `http://localhost:8025`
 
 ### Admin Access
 - **Username**: `admin`
-- **Password**: `***` (wouldn't you like to know ;)
+- **Password**: `***` (You can get it from the create_db file and change it as per convenience)
 
 ### User Registration
 1. Click on "Register" tab on the landing page

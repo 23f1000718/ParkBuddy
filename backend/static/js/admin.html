@@ -320,9 +320,9 @@
               method: 'DELETE',
               headers: { Authorization: `Bearer ${this.getToken()}` }
             })
-            .then(res => res.json())
-            .then(data => {
-              if (res.ok) {
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+              if (ok) {
                 this.showAlert('success', 'Parking lot deleted successfully!');
                 this.fetchLots();
                 this.fetchStats();
@@ -393,6 +393,7 @@
             .then(data => {
               this.showAlert('success', data.msg);
               // Fetch fresh data to ensure everything is in sync
+
               this.fetchUsers();
               this.fetchStats();
             })
